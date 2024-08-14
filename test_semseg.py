@@ -45,7 +45,8 @@ class CommandLineArgs(argparse.Namespace):
             'log_dir': None,
             'visual': False,
             'test_area': 5,
-            'num_votes': 3
+            'num_votes': 3,
+            'data_dir': 'data/s3dis/stanford_indoor3d'
         }
         for key, value in default_args.items():
             if not self.__contains__(key):
@@ -62,6 +63,7 @@ def parse_args():
     parser.add_argument('--visual', action='store_true', default=False, help='visualize result [default: False]')
     parser.add_argument('--test_area', type=int, default=5, help='area for testing, option: 1-6 [default: 5]')
     parser.add_argument('--num_votes', type=int, default=3, help='aggregate segmentation scores with voting [default: 5]')
+    parser.add_argument('--data_dir', type=str, default='data/s3dis/stanford_indoor3d', help='data directory')
     return parser.parse_args()
 
 
@@ -102,9 +104,9 @@ def main(args):
     BATCH_SIZE = args.batch_size
     NUM_POINT = args.num_point
 
-    root = 'data/s3dis/stanford_indoor3d/'
+    data_dir = args.data_dir
 
-    TEST_DATASET_WHOLE_SCENE = ScannetDatasetWholeScene(root, split='test', test_area=args.test_area, block_points=NUM_POINT)
+    TEST_DATASET_WHOLE_SCENE = ScannetDatasetWholeScene(data_dir, split='test', test_area=args.test_area, block_points=NUM_POINT)
     log_string("The number of test data is: %d" % len(TEST_DATASET_WHOLE_SCENE))
 
     '''MODEL LOADING'''

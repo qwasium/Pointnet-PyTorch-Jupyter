@@ -47,7 +47,8 @@ class CommandLineArgs(argparse.Namespace):
             'decay_rate': 1e-4,
             'use_normals': False,
             'process_data': False,
-            'use_uniform_sample': False
+            'use_uniform_sample': False,
+            'data_dir': 'data/modelnet40_normal_resampled'
         }
         for key, value in default_args.items():
             if not self.__contains__(key):
@@ -70,6 +71,7 @@ def parse_args():
     parser.add_argument('--use_normals', action='store_true', default=False, help='use normals')
     parser.add_argument('--process_data', action='store_true', default=False, help='save data offline')
     parser.add_argument('--use_uniform_sample', action='store_true', default=False, help='use uniform sampiling')
+    parser.add_argument('--data_dir', type=str, default='data/modelnet40_normal_resampled', help='data directory')
     return parser.parse_args()
 
 
@@ -145,7 +147,8 @@ def main(args):
 
     '''DATA LOADING'''
     log_string('Load dataset ...')
-    data_path = 'data/modelnet40_normal_resampled/'
+    # data_path = 'data/modelnet40_normal_resampled/'
+    data_path = args.data_dir
 
     train_dataset = ModelNetDataLoader(root=data_path, args=args, split='train', process_data=args.process_data)
     test_dataset = ModelNetDataLoader(root=data_path, args=args, split='test', process_data=args.process_data)
@@ -155,9 +158,9 @@ def main(args):
     '''MODEL LOADING'''
     num_class = args.num_category
     model = importlib.import_module(args.model)
-    shutil.copy('./models/%s.py' % args.model, str(exp_dir))
-    shutil.copy('models/pointnet2_utils.py', str(exp_dir))
-    shutil.copy('./train_classification.py', str(exp_dir))
+    # shutil.copy('./models/%s.py' % args.model, str(exp_dir))
+    # shutil.copy('models/pointnet2_utils.py', str(exp_dir))
+    # shutil.copy('./train_classification.py', str(exp_dir))
 
     classifier = model.get_model(num_class, normal_channel=args.use_normals)
     criterion = model.get_loss()

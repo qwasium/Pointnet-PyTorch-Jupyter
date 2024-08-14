@@ -53,7 +53,8 @@ class CommandLineArgs(argparse.Namespace):
             'npoint': 2048,
             'normal': False,
             'step_size': 20,
-            'lr_decay': 0.5
+            'lr_decay': 0.5,
+            'data_dir': 'data/shapenetcore_partanno_segmentation_benchmark_v0_normal'
         }
         for key, value in default_args.items():
             if not self.__contains__(key):
@@ -87,7 +88,7 @@ def parse_args():
     parser.add_argument('--normal', action='store_true', default=False, help='use normals')
     parser.add_argument('--step_size', type=int, default=20, help='decay step for lr decay')
     parser.add_argument('--lr_decay', type=float, default=0.5, help='decay rate for lr decay')
-
+    parser.add_argument('--data_dir', type=str, default='data/shapenetcore_partanno_segmentation_benchmark_v0_normal', help='data directory')
     return parser.parse_args()
 
 
@@ -116,7 +117,6 @@ def main(args):
     log_dir.mkdir(exist_ok=True)
 
     '''LOG'''
-    # args = parse_args()
     logger = logging.getLogger("Model")
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -127,11 +127,11 @@ def main(args):
     log_string('PARAMETER ...')
     log_string(args)
 
-    root = 'data/shapenetcore_partanno_segmentation_benchmark_v0_normal/'
+    data_dir = args.data_dir
 
-    TRAIN_DATASET = PartNormalDataset(root=root, npoints=args.npoint, split='trainval', normal_channel=args.normal)
+    TRAIN_DATASET = PartNormalDataset(root=data_dir, npoints=args.npoint, split='trainval', normal_channel=args.normal)
     trainDataLoader = torch.utils.data.DataLoader(TRAIN_DATASET, batch_size=args.batch_size, shuffle=True, num_workers=10, drop_last=True)
-    TEST_DATASET = PartNormalDataset(root=root, npoints=args.npoint, split='test', normal_channel=args.normal)
+    TEST_DATASET = PartNormalDataset(root=data_dir, npoints=args.npoint, split='test', normal_channel=args.normal)
     testDataLoader = torch.utils.data.DataLoader(TEST_DATASET, batch_size=args.batch_size, shuffle=False, num_workers=10)
     log_string("The number of training data is: %d" % len(TRAIN_DATASET))
     log_string("The number of test data is: %d" % len(TEST_DATASET))
@@ -141,8 +141,8 @@ def main(args):
 
     '''MODEL LOADING'''
     MODEL = importlib.import_module(args.model)
-    shutil.copy('models/%s.py' % args.model, str(exp_dir))
-    shutil.copy('models/pointnet2_utils.py', str(exp_dir))
+    # shutil.copy('models/%s.py' % args.model, str(exp_dir))
+    # shutil.copy('models/pointnet2_utils.py', str(exp_dir))
 
     classifier = MODEL.get_model(num_part, normal_channel=args.normal).cuda()
     criterion = MODEL.get_loss().cuda()

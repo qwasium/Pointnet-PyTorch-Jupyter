@@ -113,6 +113,11 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+#CMake
+visualizer/CMakeFiles/
+visualizer/cmake_install.cmake
+visualizer/CMakeCache.txt
+
 # IDE
 .vscode/
 
@@ -124,3 +129,7 @@ data/
 
 # logs
 log/
+
+# local tests
+test.sh
+test.ps1

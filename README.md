@@ -1,8 +1,11 @@
 # Pytorch Implementation of PointNet and PointNet++
 
-This repo is a fork of [yanx27's implementation](https://github.com/yanx27/Pointnet_Pointnet2_pytorch) for [PointNet](http://openaccess.thecvf.com/content_cvpr_2017/papers/Qi_PointNet_Deep_Learning_CVPR_2017_paper.pdf) and [PointNet++](http://papers.nips.cc/paper/7095-pointnet-deep-hierarchical-feature-learning-on-point-sets-in-a-metric-space.pdf) in pytorch.
+This repo is a fork of
+[yanx27's implementation](https://github.com/yanx27/Pointnet_Pointnet2_pytorch)
+for [PointNet](http://openaccess.thecvf.com/content_cvpr_2017/papers/Qi_PointNet_Deep_Learning_CVPR_2017_paper.pdf)
+and [PointNet++](http://papers.nips.cc/paper/7095-pointnet-deep-hierarchical-feature-learning-on-point-sets-in-a-metric-space.pdf) in pytorch.
 
-This fork is modified for better integration with Jupyter Notebook.
+This fork is modified so it could be ran on Jupyter Notebook.
 
 ## Update
 
@@ -48,6 +51,9 @@ The latest codes are tested on:
 - PyTorch 2.3.1
 
 ```shell
+git clone https://github.com/qwasium/Pointnet_Pointnet2_pytorch.git
+
+# Use your favorite virtual environment manager. I will use venv here.
 cd ~/.virtualenvs
 python -m venv pointnet_env
 pip install -r requirements.txt
@@ -107,7 +113,8 @@ python test_classification.py --log_dir pointnet2_cls_ssg --num_category 10
 ### Data Preparation
 
 Download alignment **ShapeNet**
-[here](https://shapenet.cs.stanford.edu/media/shapenetcore_partanno_segmentation_benchmark_v0_normal.zip)
+[~~here~~](https://shapenet.cs.stanford.edu/media/shapenetcore_partanno_segmentation_benchmark_v0_normal.zip)
+(*NOTE*: ShapeNet has moved to [HuggingFace](https://huggingface.co/datasets/ShapeNet/ShapeNetCore) on Aug. 2023)
 and save in `data/shapenetcore_partanno_segmentation_benchmark_v0_normal/`.
 
 ### Run
@@ -227,7 +234,7 @@ If you find this repo useful in your research, please consider citing it and our
 }
 ```
 
-## Selected Projects using This Codebase
+## Selected Projects using The original Codebase (by yanx27)
 
 - [PointConv: Deep Convolutional Networks on 3D Point Clouds, CVPR'19](https://github.com/Young98CN/pointconv_pytorch)
 - [On Isometry Robustness of Deep 3D Point Cloud Models under Adversarial Attacks, CVPR'20](https://github.com/skywalker6174/3d-isometry-robust)

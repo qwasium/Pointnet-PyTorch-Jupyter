@@ -36,7 +36,8 @@ class CommandLineArgs(argparse.Namespace):
             'log_dir': None,
             'use_normals': False,
             'use_uniform_sample': False,
-            'num_votes': 3
+            'num_votes': 3,
+            'data_dir': 'data/modelnet40_normal_resampled'
         }
         for key, value in default_args.items():
             if not self.__contains__(key):
@@ -54,6 +55,7 @@ def parse_args():
     parser.add_argument('--use_normals', action='store_true', default=False, help='use normals')
     parser.add_argument('--use_uniform_sample', action='store_true', default=False, help='use uniform sampiling')
     parser.add_argument('--num_votes', type=int, default=3, help='Aggregate classification scores with voting')
+    parser.add_argument('--data_dir', type=str, default='data/modelnet40_normal_resampled', help='data directory')
     return parser.parse_args()
 
 
@@ -112,7 +114,8 @@ def main(args):
 
     '''DATA LOADING'''
     log_string('Load dataset ...')
-    data_path = 'data/modelnet40_normal_resampled/'
+    # data_path = 'data/modelnet40_normal_resampled/'
+    data_path = args.data_dir
 
     test_dataset = ModelNetDataLoader(root=data_path, args=args, split='test', process_data=False)
     testDataLoader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=10)
