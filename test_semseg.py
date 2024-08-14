@@ -28,6 +28,30 @@ for i, cat in enumerate(seg_classes.keys()):
     seg_label_to_cat[i] = cat
 
 
+class CommandLineArgs(argparse.Namespace):
+
+    def __init__(self, **kwargs):
+        """Create argument to pass into main() when colling from outside of the script such as Jupiter notebook.
+
+        Args:
+            **kwargs: arguments to pass into the main() function. **Dict can also be passed.
+        """
+        super().__init__(**kwargs)
+        # define default arguments
+        default_args = {
+            'batch_size': 32,
+            'gpu': '0',
+            'num_point': 4096,
+            'log_dir': None,
+            'visual': False,
+            'test_area': 5,
+            'num_votes': 3
+        }
+        for key, value in default_args.items():
+            if not self.__contains__(key):
+                setattr(self, key, value)
+
+
 def parse_args():
     '''PARAMETERS'''
     parser = argparse.ArgumentParser('Model')
@@ -52,9 +76,9 @@ def add_vote(vote_label_pool, point_idx, pred_label, weight):
 
 
 def main(args):
-    def log_string(str):
-        logger.info(str)
-        print(str)
+    def log_string(log_str):
+        logger.info(log_str)
+        print(log_str)
 
     '''HYPER PARAMETER'''
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
@@ -64,7 +88,6 @@ def main(args):
     visual_dir.mkdir(exist_ok=True)
 
     '''LOG'''
-    args = parse_args()
     logger = logging.getLogger("Model")
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -199,5 +222,5 @@ def main(args):
 
 
 if __name__ == '__main__':
-    args = parse_args()
-    main(args)
+    arguments = parse_args()
+    main(arguments)

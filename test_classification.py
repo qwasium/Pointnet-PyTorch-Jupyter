@@ -17,6 +17,31 @@ ROOT_DIR = BASE_DIR
 sys.path.append(os.path.join(ROOT_DIR, 'models'))
 
 
+class CommandLineArgs(argparse.Namespace):
+
+    def __init__(self, **kwargs):
+        """Create argument to pass into main() when colling from outside of the script such as Jupiter notebook.
+
+        Args:
+            **kwargs: arguments to pass into the main() function. **Dict can also be passed.
+        """
+        super().__init__(**kwargs)
+        # define default arguments
+        default_args = {
+            'use_cpu': False,
+            'gpu': '0',
+            'batch_size': 24,
+            'num_category': 40,
+            'num_point': 1024,
+            'log_dir': None,
+            'use_normals': False,
+            'use_uniform_sample': False,
+            'num_votes': 3
+        }
+        for key, value in default_args.items():
+            if not self.__contains__(key):
+                setattr(self, key, value)
+
 def parse_args():
     '''PARAMETERS'''
     parser = argparse.ArgumentParser('Testing')
@@ -32,12 +57,12 @@ def parse_args():
     return parser.parse_args()
 
 
-def test(model, loader, num_class=40, vote_num=1):
+def test(args, model, loader, num_class=40, vote_num=1):
     mean_correct = []
     classifier = model.eval()
     class_acc = np.zeros((num_class, 3))
 
-    for j, (points, target) in tqdm(enumerate(loader), total=len(loader)):
+    for _, (points, target) in tqdm(enumerate(loader), total=len(loader)):
         if not args.use_cpu:
             points, target = points.cuda(), target.cuda()
 
@@ -64,9 +89,9 @@ def test(model, loader, num_class=40, vote_num=1):
 
 
 def main(args):
-    def log_string(str):
-        logger.info(str)
-        print(str)
+    def log_string(log_str):
+        logger.info(log_str)
+        print(log_str)
 
     '''HYPER PARAMETER'''
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
@@ -75,7 +100,6 @@ def main(args):
     experiment_dir = 'log/classification/' + args.log_dir
 
     '''LOG'''
-    args = parse_args()
     logger = logging.getLogger("Model")
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -106,10 +130,10 @@ def main(args):
     classifier.load_state_dict(checkpoint['model_state_dict'])
 
     with torch.no_grad():
-        instance_acc, class_acc = test(classifier.eval(), testDataLoader, vote_num=args.num_votes, num_class=num_class)
+        instance_acc, class_acc = test(args, classifier.eval(), testDataLoader, vote_num=args.num_votes, num_class=num_class)
         log_string('Test Instance Accuracy: %f, Class Accuracy: %f' % (instance_acc, class_acc))
 
 
 if __name__ == '__main__':
-    args = parse_args()
-    main(args)
+    arguments = parse_args()
+    main(arguments)

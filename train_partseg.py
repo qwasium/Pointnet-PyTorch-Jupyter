@@ -31,6 +31,35 @@ for cat in seg_classes.keys():
         seg_label_to_cat[label] = cat
 
 
+class CommandLineArgs(argparse.Namespace):
+
+    def __init__(self, **kwargs):
+        """Create argument to pass into main() when colling from outside of the script such as Jupiter Notebook.
+
+        Args:
+            **kwargs: arguments to pass into the main() function. **Dict can also be passed.
+        """
+        super().__init__(**kwargs)
+        # define default arguments
+        default_args = {
+            'model': 'pointnet_part_seg',
+            'batch_size': 16,
+            'epoch': 251,
+            'learning_rate': 0.001,
+            'gpu': '0',
+            'optimizer': 'Adam',
+            'log_dir': None,
+            'decay_rate': 1e-4,
+            'npoint': 2048,
+            'normal': False,
+            'step_size': 20,
+            'lr_decay': 0.5
+        }
+        for key, value in default_args.items():
+            if not self.__contains__(key):
+                setattr(self, key, value)
+
+
 def inplace_relu(m):
     classname = m.__class__.__name__
     if classname.find('ReLU') != -1:
@@ -63,9 +92,9 @@ def parse_args():
 
 
 def main(args):
-    def log_string(str):
-        logger.info(str)
-        print(str)
+    def log_string(log_str):
+        logger.info(log_str)
+        print(log_str)
 
     '''HYPER PARAMETER'''
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
@@ -87,7 +116,7 @@ def main(args):
     log_dir.mkdir(exist_ok=True)
 
     '''LOG'''
-    args = parse_args()
+    # args = parse_args()
     logger = logging.getLogger("Model")
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -219,7 +248,7 @@ def main(args):
 
             classifier = classifier.eval()
 
-            for batch_id, (points, label, target) in tqdm(enumerate(testDataLoader), total=len(testDataLoader), smoothing=0.9):
+            for _batch_id, (points, label, target) in tqdm(enumerate(testDataLoader), total=len(testDataLoader), smoothing=0.9):
                 cur_batch_size, NUM_POINT, _ = points.size()
                 points, label, target = points.float().cuda(), label.long().cuda(), target.long().cuda()
                 points = points.transpose(2, 1)
@@ -301,5 +330,5 @@ def main(args):
 
 
 if __name__ == '__main__':
-    args = parse_args()
-    main(args)
+    arguments = parse_args()
+    main(arguments)

@@ -23,6 +23,36 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = BASE_DIR
 sys.path.append(os.path.join(ROOT_DIR, 'models'))
 
+class CommandLineArgs(argparse.Namespace):
+
+    def __init__(self, **kwargs):
+        """Create argument to pass into main() when colling from outside of the script such as Jupiter Notebook.
+
+        Args:
+            **kwargs: arguments to pass into the main() function. **Dict can also be passed.
+        """
+        super().__init__(**kwargs)
+        # define default arguments
+        default_args = {
+            'use_cpu': False,
+            'gpu': '0',
+            'batch_size': 25,
+            'model': 'pointnet_cls',
+            'num_category': 40,
+            'epoch': 200,
+            'learning_rate': 0.001,
+            'num_point': 1024,
+            'optimizer': 'adam',
+            'log_dir': None,
+            'decay_rate': 1e-4,
+            'use_normals': False,
+            'process_data': False,
+            'use_uniform_sample': False
+        }
+        for key, value in default_args.items():
+            if not self.__contains__(key):
+                setattr(self, key, value)
+
 def parse_args():
     '''PARAMETERS'''
     parser = argparse.ArgumentParser('training')
@@ -49,12 +79,12 @@ def inplace_relu(m):
         m.inplace=True
 
 
-def test(model, loader, num_class=40):
+def test(args, model, loader, num_class=40):
     mean_correct = []
     class_acc = np.zeros((num_class, 3))
     classifier = model.eval()
 
-    for j, (points, target) in tqdm(enumerate(loader), total=len(loader)):
+    for _, (points, target) in tqdm(enumerate(loader), total=len(loader)):
 
         if not args.use_cpu:
             points, target = points.cuda(), target.cuda()
@@ -79,9 +109,9 @@ def test(model, loader, num_class=40):
 
 
 def main(args):
-    def log_string(str):
-        logger.info(str)
-        print(str)
+    def log_string(log_str):
+        logger.info(log_str)
+        print(log_str)
 
     '''HYPER PARAMETER'''
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
@@ -103,7 +133,6 @@ def main(args):
     log_dir.mkdir(exist_ok=True)
 
     '''LOG'''
-    args = parse_args()
     logger = logging.getLogger("Model")
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -172,7 +201,7 @@ def main(args):
         classifier = classifier.train()
 
         scheduler.step()
-        for batch_id, (points, target) in tqdm(enumerate(trainDataLoader, 0), total=len(trainDataLoader), smoothing=0.9):
+        for _batch_id, (points, target) in tqdm(enumerate(trainDataLoader, 0), total=len(trainDataLoader), smoothing=0.9):
             optimizer.zero_grad()
 
             points = points.data.numpy()
@@ -199,7 +228,7 @@ def main(args):
         log_string('Train Instance Accuracy: %f' % train_instance_acc)
 
         with torch.no_grad():
-            instance_acc, class_acc = test(classifier.eval(), testDataLoader, num_class=num_class)
+            instance_acc, class_acc = test(args, classifier.eval(), testDataLoader, num_class=num_class)
 
             if (instance_acc >= best_instance_acc):
                 best_instance_acc = instance_acc
@@ -228,5 +257,5 @@ def main(args):
 
 
 if __name__ == '__main__':
-    args = parse_args()
-    main(args)
+    arguments = parse_args()
+    main(arguments)

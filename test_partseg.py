@@ -27,6 +27,29 @@ for cat in seg_classes.keys():
         seg_label_to_cat[label] = cat
 
 
+class CommandLineArgs(argparse.Namespace):
+
+    def __init__(self, **kwargs):
+        """Create argument to pass into main() when colling from outside of the script such as Jupiter notebook.
+
+        Args:
+            **kwargs: arguments to pass into the main() function. **Dict can also be passed.
+        """
+        super().__init__(**kwargs)
+        # define default arguments
+        default_args = {
+            'batch_size': 24,
+            'gpu': '0',
+            'num_point': 2048,
+            'log_dir': None,
+            'normal': False,
+            'num_votes': 3
+        }
+        for key, value in default_args.items():
+            if not self.__contains__(key):
+                setattr(self, key, value)
+
+
 def to_categorical(y, num_classes):
     """ 1-hot encodes a tensor """
     new_y = torch.eye(num_classes)[y.cpu().data.numpy(),]
@@ -48,16 +71,15 @@ def parse_args():
 
 
 def main(args):
-    def log_string(str):
-        logger.info(str)
-        print(str)
+    def log_string(log_str):
+        logger.info(log_str)
+        print(log_str)
 
     '''HYPER PARAMETER'''
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     experiment_dir = 'log/part_seg/' + args.log_dir
 
     '''LOG'''
-    args = parse_args()
     logger = logging.getLogger("Model")
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -97,9 +119,9 @@ def main(args):
                 seg_label_to_cat[label] = cat
 
         classifier = classifier.eval()
-        for batch_id, (points, label, target) in tqdm(enumerate(testDataLoader), total=len(testDataLoader),
+        for _batch_id, (points, label, target) in tqdm(enumerate(testDataLoader), total=len(testDataLoader),
                                                       smoothing=0.9):
-            batchsize, num_point, _ = points.size()
+            _batchsize, _num_point, _ = points.size()
             cur_batch_size, NUM_POINT, _ = points.size()
             points, label, target = points.float().cuda(), label.long().cuda(), target.long().cuda()
             points = points.transpose(2, 1)
@@ -163,5 +185,5 @@ def main(args):
 
 
 if __name__ == '__main__':
-    args = parse_args()
-    main(args)
+    arguments = parse_args()
+    main(arguments)
