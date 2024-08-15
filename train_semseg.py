@@ -2,20 +2,22 @@
 Author: Benny
 Date: Nov 2019
 """
+import time
 import argparse
 import os
-from data_utils.S3DISDataLoader import S3DISDataset
-import torch
+import sys
 import datetime
 import logging
 from pathlib import Path
-import sys
 import importlib
-import shutil
+# import shutil
 from tqdm import tqdm
 import provider
+
+import torch
 import numpy as np
-import time
+
+from data_utils.S3DISDataLoader import S3DISDataset
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = BASE_DIR
@@ -155,7 +157,7 @@ def main(args):
             torch.nn.init.constant_(m.bias.data, 0.0)
 
     try:
-        checkpoint = torch.load(str(experiment_dir) + '/checkpoints/best_model.pth')
+        checkpoint = torch.load(Path(experiment_dir, 'checkpoints/best_model.pth'))
         start_epoch = checkpoint['epoch']
         classifier.load_state_dict(checkpoint['model_state_dict'])
         log_string('Use pretrain model')

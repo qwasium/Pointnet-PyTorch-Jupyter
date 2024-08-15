@@ -43,6 +43,7 @@ class CommandLineArgs(argparse.Namespace):
             'learning_rate': 0.001,
             'num_point': 1024,
             'optimizer': 'adam',
+            'log_root': 'log',
             'log_dir': None,
             'decay_rate': 1e-4,
             'use_normals': False,
@@ -66,7 +67,8 @@ def parse_args():
     parser.add_argument('--learning_rate', default=0.001, type=float, help='learning rate in training')
     parser.add_argument('--num_point', type=int, default=1024, help='Point Number')
     parser.add_argument('--optimizer', type=str, default='Adam', help='optimizer for training')
-    parser.add_argument('--log_dir', type=str, default=None, help='experiment root')
+    parser.add_argument('--log_root', type=str, default='log', help='log directory root')
+    parser.add_argument('--log_dir', type=str, default=None, help='experiment root within log directory')
     parser.add_argument('--decay_rate', type=float, default=1e-4, help='decay rate')
     parser.add_argument('--use_normals', action='store_true', default=False, help='use normals')
     parser.add_argument('--process_data', action='store_true', default=False, help='save data offline')
@@ -120,7 +122,8 @@ def main(args):
 
     '''CREATE DIR'''
     timestr = str(datetime.datetime.now().strftime('%Y-%m-%d_%H-%M'))
-    exp_dir = Path('./log/')
+    # exp_dir = Path('./log/')
+    exp_dir = Path(args.log_root)
     exp_dir.mkdir(exist_ok=True)
     exp_dir = exp_dir.joinpath('classification')
     exp_dir.mkdir(exist_ok=True)

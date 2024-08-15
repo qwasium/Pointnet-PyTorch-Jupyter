@@ -2,15 +2,18 @@
 Author: Benny
 Date: Nov 2019
 """
-from data_utils.ModelNetDataLoader import ModelNetDataLoader
-import argparse
-import numpy as np
 import os
-import torch
-import logging
-from tqdm import tqdm
 import sys
+import argparse
+import logging
+from pathlib import Path
 import importlib
+
+import numpy as np
+import torch
+from tqdm import tqdm
+
+from data_utils.ModelNetDataLoader import ModelNetDataLoader
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = BASE_DIR
@@ -34,6 +37,7 @@ class CommandLineArgs(argparse.Namespace):
             'num_category': 40,
             'num_point': 1024,
             'log_dir': None,
+            'log_root': 'log',
             'use_normals': False,
             'use_uniform_sample': False,
             'num_votes': 3,
@@ -51,7 +55,8 @@ def parse_args():
     parser.add_argument('--batch_size', type=int, default=24, help='batch size in training')
     parser.add_argument('--num_category', default=40, type=int, choices=[10, 40],  help='training on ModelNet10/40')
     parser.add_argument('--num_point', type=int, default=1024, help='Point Number')
-    parser.add_argument('--log_dir', type=str, required=True, help='Experiment root')
+    parser.add_argument('--log_root', type=str, default='log', help='Log directory root')
+    parser.add_argument('--log_dir', type=str, required=True, help='Experiment root within log directory')
     parser.add_argument('--use_normals', action='store_true', default=False, help='use normals')
     parser.add_argument('--use_uniform_sample', action='store_true', default=False, help='use uniform sampiling')
     parser.add_argument('--num_votes', type=int, default=3, help='Aggregate classification scores with voting')
@@ -99,7 +104,7 @@ def main(args):
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 
     '''CREATE DIR'''
-    experiment_dir = 'log/classification/' + args.log_dir
+    experiment_dir = Path(args.log_root + '/classification/' + args.log_dir)
 
     '''LOG'''
     logger = logging.getLogger("Model")
@@ -114,7 +119,6 @@ def main(args):
 
     '''DATA LOADING'''
     log_string('Load dataset ...')
-    # data_path = 'data/modelnet40_normal_resampled/'
     data_path = args.data_dir
 
     test_dataset = ModelNetDataLoader(root=data_path, args=args, split='test', process_data=False)
@@ -122,14 +126,14 @@ def main(args):
 
     '''MODEL LOADING'''
     num_class = args.num_category
-    model_name = os.listdir(experiment_dir + '/logs')[0].split('.')[0]
+    model_name = os.listdir(Path(experiment_dir, 'logs'))[0].split('.')[0]
     model = importlib.import_module(model_name)
 
     classifier = model.get_model(num_class, normal_channel=args.use_normals)
     if not args.use_cpu:
         classifier = classifier.cuda()
 
-    checkpoint = torch.load(str(experiment_dir) + '/checkpoints/best_model.pth')
+    checkpoint = torch.load(Path(experiment_dir, 'checkpoints/best_model.pth'))
     classifier.load_state_dict(checkpoint['model_state_dict'])
 
     with torch.no_grad():

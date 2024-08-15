@@ -113,9 +113,17 @@ python test_classification.py --log_dir pointnet2_cls_ssg --num_category 10
 ### Data Preparation
 
 Download alignment **ShapeNet**
-[~~here~~](https://shapenet.cs.stanford.edu/media/shapenetcore_partanno_segmentation_benchmark_v0_normal.zip)
-(*NOTE*: ShapeNet has moved to [HuggingFace](https://huggingface.co/datasets/ShapeNet/ShapeNetCore) on Aug. 2023)
+[here](https://shapenet.cs.stanford.edu/media/shapenetcore_partanno_segmentation_benchmark_v0_normal.zip)
 and save in `data/shapenetcore_partanno_segmentation_benchmark_v0_normal/`.
+
+For getting the data, request access through huggingface.
+
+After granted access, generate a token and download the dataset.
+See [huggingface docs](https://huggingface.co/docs/hub/en/repositories-getting-started) for details.
+
+```shell
+git clone https://huggingface.co/datasets/ShapeNet/ShapeNetCore/ # This will take a while
+```
 
 ### Run
 
@@ -140,9 +148,11 @@ python test_partseg.py --normal --log_dir pointnet2_part_seg_msg
 
 ### Data Preparation
 
-Download 3D indoor parsing dataset (**S3DIS**)
+~~Download 3D indoor parsing dataset (**S3DIS**)
 [here](http://buildingparser.stanford.edu/dataset.html)
-and save in `data/s3dis/Stanford3dDataset_v1.2_Aligned_Version/`.
+and save in `data/s3dis/Stanford3dDataset_v1.2_Aligned_Version/`.~~
+
+**NOTE (Aug. 2024)**: The website is down. Need to contact author to access data.
 
 ```shell
 cd data_utils
@@ -178,6 +188,17 @@ Visualization results will save in `log/sem_seg/pointnet2_sem_seg/visual/` and y
 cd visualizer
 bash build.sh
 ## run one example
+python show3d_balls.py
+```
+
+```shell
+# Alternatively, you can use cmake
+cd visualizer
+cmake -S . -B .
+cmake --build .
+
+# run one example
+# Don't forget to activate your virtual environment
 python show3d_balls.py
 ```
 

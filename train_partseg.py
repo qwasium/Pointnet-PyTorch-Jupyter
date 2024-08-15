@@ -4,17 +4,18 @@ Date: Nov 2019
 """
 import argparse
 import os
-import torch
 import datetime
 import logging
 import sys
 import importlib
-import shutil
-import provider
-import numpy as np
-
 from pathlib import Path
+# import shutil
+
+import numpy as np
+import torch
 from tqdm import tqdm
+import provider
+
 from data_utils.ShapeNetDataLoader import PartNormalDataset
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -49,6 +50,7 @@ class CommandLineArgs(argparse.Namespace):
             'gpu': '0',
             'optimizer': 'Adam',
             'log_dir': None,
+            'log_root': 'log',
             'decay_rate': 1e-4,
             'npoint': 2048,
             'normal': False,
@@ -82,7 +84,8 @@ def parse_args():
     parser.add_argument('--learning_rate', default=0.001, type=float, help='initial learning rate')
     parser.add_argument('--gpu', type=str, default='0', help='specify GPU devices')
     parser.add_argument('--optimizer', type=str, default='Adam', help='Adam or SGD')
-    parser.add_argument('--log_dir', type=str, default=None, help='log path')
+    parser.add_argument('--log_root', type=str, default='log', help='Log root directory')
+    parser.add_argument('--log_dir', type=str, default=None, help='log path wihin log root directory')
     parser.add_argument('--decay_rate', type=float, default=1e-4, help='weight decay')
     parser.add_argument('--npoint', type=int, default=2048, help='point Number')
     parser.add_argument('--normal', action='store_true', default=False, help='use normals')
@@ -102,7 +105,7 @@ def main(args):
 
     '''CREATE DIR'''
     timestr = str(datetime.datetime.now().strftime('%Y-%m-%d_%H-%M'))
-    exp_dir = Path('./log/')
+    exp_dir = Path(args.log_root)
     exp_dir.mkdir(exist_ok=True)
     exp_dir = exp_dir.joinpath('part_seg')
     exp_dir.mkdir(exist_ok=True)
@@ -158,7 +161,7 @@ def main(args):
             torch.nn.init.constant_(m.bias.data, 0.0)
 
     try:
-        checkpoint = torch.load(str(exp_dir) + '/checkpoints/best_model.pth')
+        checkpoint = torch.load(Path(exp_dir, 'checkpoints/best_model.pth'))
         start_epoch = checkpoint['epoch']
         classifier.load_state_dict(checkpoint['model_state_dict'])
         log_string('Use pretrain model')
@@ -196,6 +199,7 @@ def main(args):
         mean_correct = []
 
         log_string('Epoch %d (%d/%s):' % (global_epoch + 1, epoch + 1, args.epoch))
+
         '''Adjust learning rate and BN momentum'''
         lr = max(args.learning_rate * (args.lr_decay ** (epoch // args.step_size)), LEARNING_RATE_CLIP)
         log_string('Learning rate:%f' % lr)
@@ -239,7 +243,7 @@ def main(args):
             total_seen = 0
             total_seen_class = [0 for _ in range(num_part)]
             total_correct_class = [0 for _ in range(num_part)]
-            shape_ious = {cat: [] for cat in seg_classes.keys()}
+            shape_ious = {cat: [] for cat in seg_classes}
             seg_label_to_cat = {}  # {0:Airplane, 1:Airplane, ...49:Table}
 
             for cat in seg_classes.keys():
@@ -293,7 +297,7 @@ def main(args):
             mean_shape_ious = np.mean(list(shape_ious.values()))
             test_metrics['accuracy'] = total_correct / float(total_seen)
             test_metrics['class_avg_accuracy'] = np.mean(
-                np.array(total_correct_class) / np.array(total_seen_class, dtype=np.float))
+                np.array(total_correct_class) / np.array(total_seen_class, dtype=np.float64))
             for cat in sorted(shape_ious.keys()):
                 log_string('eval mIoU of %s %f' % (cat + ' ' * (14 - len(cat)), shape_ious[cat]))
             test_metrics['class_avg_iou'] = mean_shape_ious

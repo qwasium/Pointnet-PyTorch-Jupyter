@@ -4,6 +4,7 @@ Date: Nov 2019
 """
 import argparse
 import os
+from pathlib import Path
 from data_utils.ShapeNetDataLoader import PartNormalDataset
 import torch
 import logging
@@ -41,6 +42,7 @@ class CommandLineArgs(argparse.Namespace):
             'batch_size': 24,
             'gpu': '0',
             'num_point': 2048,
+            'log_root': 'log',
             'log_dir': None,
             'normal': False,
             'num_votes': 3,
@@ -58,14 +60,14 @@ def to_categorical(y, num_classes):
         return new_y.cuda()
     return new_y
 
-
 def parse_args():
     '''PARAMETERS'''
     parser = argparse.ArgumentParser('PointNet')
     parser.add_argument('--batch_size', type=int, default=24, help='batch size in testing')
     parser.add_argument('--gpu', type=str, default='0', help='specify gpu device')
     parser.add_argument('--num_point', type=int, default=2048, help='point Number')
-    parser.add_argument('--log_dir', type=str, required=True, help='experiment root')
+    parser.add_argument('--log_root', type=str, default='log', help='Log directory root')
+    parser.add_argument('--log_dir', type=str, required=True, help='experiment root within log directory')
     parser.add_argument('--normal', action='store_true', default=False, help='use normals')
     parser.add_argument('--num_votes', type=int, default=3, help='aggregate segmentation scores with voting')
     parser.add_argument('--data_dir', type=str, default='data/shapenetcore_partanno_segmentation_benchmark_v0_normal', help='data directory')
@@ -79,7 +81,8 @@ def main(args):
 
     '''HYPER PARAMETER'''
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
-    experiment_dir = 'log/part_seg/' + args.log_dir
+    # experiment_dir = 'log/part_seg/' + args.log_dir
+    experiment_dir = Path(args.log_root + '/part_seg/' + args.log_dir)
 
     '''LOG'''
     logger = logging.getLogger("Model")
