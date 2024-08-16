@@ -22,15 +22,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = BASE_DIR
 sys.path.append(os.path.join(ROOT_DIR, 'models'))
 
-seg_classes = {'Earphone': [16, 17, 18], 'Motorbike': [30, 31, 32, 33, 34, 35], 'Rocket': [41, 42, 43],
-               'Car': [8, 9, 10, 11], 'Laptop': [28, 29], 'Cap': [6, 7], 'Skateboard': [44, 45, 46], 'Mug': [36, 37],
-               'Guitar': [19, 20, 21], 'Bag': [4, 5], 'Lamp': [24, 25, 26, 27], 'Table': [47, 48, 49],
-               'Airplane': [0, 1, 2, 3], 'Pistol': [38, 39, 40], 'Chair': [12, 13, 14, 15], 'Knife': [22, 23]}
-seg_label_to_cat = {}  # {0:Airplane, 1:Airplane, ...49:Table}
-for cat in seg_classes.keys():
-    for label in seg_classes[cat]:
-        seg_label_to_cat[label] = cat
-
 
 class CommandLineArgs(argparse.Namespace):
 
@@ -95,7 +86,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def main(args):
+def main(args, seg_classes: dict):
     def log_string(log_str):
         logger.info(log_str)
         print(log_str)
@@ -132,6 +123,7 @@ def main(args):
 
     data_dir = args.data_dir
 
+    # data_utils/ShapenetPartLoader.py
     TRAIN_DATASET = PartNormalDataset(root=data_dir, npoints=args.npoint, split='trainval', normal_channel=args.normal)
     trainDataLoader = torch.utils.data.DataLoader(TRAIN_DATASET, batch_size=args.batch_size, shuffle=True, num_workers=10, drop_last=True)
     TEST_DATASET = PartNormalDataset(root=data_dir, npoints=args.npoint, split='test', normal_channel=args.normal)
@@ -332,7 +324,30 @@ def main(args):
         log_string('Best inctance avg mIOU is: %.5f' % best_inctance_avg_iou)
         global_epoch += 1
 
+        return test_metrics
+
 
 if __name__ == '__main__':
+
+    # default categories/classes
+    segmentation_classes = {
+        'Earphone': [16, 17, 18],
+        'Motorbike': [30, 31, 32, 33, 34, 35],
+        'Rocket': [41, 42, 43],
+        'Car': [8, 9, 10, 11],
+        'Laptop': [28, 29],
+        'Cap': [6, 7],
+        'Skateboard': [44, 45, 46],
+        'Mug': [36, 37],
+        'Guitar': [19, 20, 21],
+        'Bag': [4, 5],
+        'Lamp': [24, 25, 26, 27],
+        'Table': [47, 48, 49],
+        'Airplane': [0, 1, 2, 3],
+        'Pistol': [38, 39, 40],
+        'Chair': [12, 13, 14, 15],
+        'Knife': [22, 23]
+    }
+
     arguments = parse_args()
-    main(arguments)
+    main(arguments, seg_classes=segmentation_classes)

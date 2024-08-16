@@ -17,16 +17,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = BASE_DIR
 sys.path.append(os.path.join(ROOT_DIR, 'models'))
 
-seg_classes = {'Earphone': [16, 17, 18], 'Motorbike': [30, 31, 32, 33, 34, 35], 'Rocket': [41, 42, 43],
-               'Car': [8, 9, 10, 11], 'Laptop': [28, 29], 'Cap': [6, 7], 'Skateboard': [44, 45, 46], 'Mug': [36, 37],
-               'Guitar': [19, 20, 21], 'Bag': [4, 5], 'Lamp': [24, 25, 26, 27], 'Table': [47, 48, 49],
-               'Airplane': [0, 1, 2, 3], 'Pistol': [38, 39, 40], 'Chair': [12, 13, 14, 15], 'Knife': [22, 23]}
-
-seg_label_to_cat = {}  # {0:Airplane, 1:Airplane, ...49:Table}
-for cat in seg_classes.keys():
-    for label in seg_classes[cat]:
-        seg_label_to_cat[label] = cat
-
 
 class CommandLineArgs(argparse.Namespace):
 
@@ -74,14 +64,13 @@ def parse_args():
     return parser.parse_args()
 
 
-def main(args):
+def main(args, seg_classes: dict):
     def log_string(log_str):
         logger.info(log_str)
         print(log_str)
 
     '''HYPER PARAMETER'''
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
-    # experiment_dir = 'log/part_seg/' + args.log_dir
     experiment_dir = Path(args.log_root + '/part_seg/' + args.log_dir)
 
     '''LOG'''
@@ -100,14 +89,14 @@ def main(args):
     TEST_DATASET = PartNormalDataset(root=data_dir, npoints=args.num_point, split='test', normal_channel=args.normal)
     testDataLoader = torch.utils.data.DataLoader(TEST_DATASET, batch_size=args.batch_size, shuffle=False, num_workers=4)
     log_string("The number of test data is: %d" % len(TEST_DATASET))
-    num_classes = 16
-    num_part = 50
+    num_classes = len(seg_classes) # 16
+    num_part = len([seg_id for seg_val_sublist in seg_classes.values() for seg_id in seg_val_sublist]) # 50
 
     '''MODEL LOADING'''
-    model_name = os.listdir(experiment_dir + '/logs')[0].split('.')[0]
+    model_name = os.listdir(Path(experiment_dir, 'logs'))[0].split('.')[0]
     MODEL = importlib.import_module(model_name)
     classifier = MODEL.get_model(num_part, normal_channel=args.normal).cuda()
-    checkpoint = torch.load(str(experiment_dir) + '/checkpoints/best_model.pth')
+    checkpoint = torch.load(Path(experiment_dir, 'checkpoints/best_model.pth'))
     classifier.load_state_dict(checkpoint['model_state_dict'])
 
     with torch.no_grad():
@@ -126,7 +115,6 @@ def main(args):
         classifier = classifier.eval()
         for _batch_id, (points, label, target) in tqdm(enumerate(testDataLoader), total=len(testDataLoader),
                                                       smoothing=0.9):
-            _batchsize, _num_point, _ = points.size()
             cur_batch_size, NUM_POINT, _ = points.size()
             points, label, target = points.float().cuda(), label.long().cuda(), target.long().cuda()
             points = points.transpose(2, 1)
@@ -161,23 +149,22 @@ def main(args):
                 cat = seg_label_to_cat[segl[0]]
                 part_ious = [0.0 for _ in range(len(seg_classes[cat]))]
                 for l in seg_classes[cat]:
-                    if (np.sum(segl == l) == 0) and (
-                            np.sum(segp == l) == 0):  # part is not present, no prediction as well
+                    if (np.sum(segl == l) == 0) and (np.sum(segp == l) == 0):  # part is not present, no prediction as well
                         part_ious[l - seg_classes[cat][0]] = 1.0
                     else:
-                        part_ious[l - seg_classes[cat][0]] = np.sum((segl == l) & (segp == l)) / float(
-                            np.sum((segl == l) | (segp == l)))
+                        part_ious[l - seg_classes[cat][0]] \
+                            = np.sum((segl == l) & (segp == l)) / float(np.sum((segl == l) | (segp == l)))
                 shape_ious[cat].append(np.mean(part_ious))
 
         all_shape_ious = []
-        for cat in shape_ious.keys():
+        for cat in shape_ious:
             for iou in shape_ious[cat]:
                 all_shape_ious.append(iou)
             shape_ious[cat] = np.mean(shape_ious[cat])
         mean_shape_ious = np.mean(list(shape_ious.values()))
         test_metrics['accuracy'] = total_correct / float(total_seen)
         test_metrics['class_avg_accuracy'] = np.mean(
-            np.array(total_correct_class) / np.array(total_seen_class, dtype=np.float))
+            np.array(total_correct_class) / np.array(total_seen_class, dtype=np.float64))
         for cat in sorted(shape_ious.keys()):
             log_string('eval mIoU of %s %f' % (cat + ' ' * (14 - len(cat)), shape_ious[cat]))
         test_metrics['class_avg_iou'] = mean_shape_ious
@@ -188,7 +175,30 @@ def main(args):
     log_string('Class avg mIOU is: %.5f' % test_metrics['class_avg_iou'])
     log_string('Inctance avg mIOU is: %.5f' % test_metrics['inctance_avg_iou'])
 
+    return test_metrics, shape_ious, total_correct_class, total_seen_class
+
 
 if __name__ == '__main__':
+
+    # default categories/classes
+    segmentation_classes = {
+        'Earphone': [16, 17, 18],
+        'Motorbike': [30, 31, 32, 33, 34, 35],
+        'Rocket': [41, 42, 43],
+        'Car': [8, 9, 10, 11],
+        'Laptop': [28, 29],
+        'Cap': [6, 7],
+        'Skateboard': [44, 45, 46],
+        'Mug': [36, 37],
+        'Guitar': [19, 20, 21],
+        'Bag': [4, 5],
+        'Lamp': [24, 25, 26, 27],
+        'Table': [47, 48, 49],
+        'Airplane': [0, 1, 2, 3],
+        'Pistol': [38, 39, 40],
+        'Chair': [12, 13, 14, 15],
+        'Knife': [22, 23]
+    }
+
     arguments = parse_args()
-    main(arguments)
+    main(arguments, seg_classes=segmentation_classes)
