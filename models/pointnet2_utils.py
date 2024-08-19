@@ -20,7 +20,7 @@ def square_distance(src, dst):
     """
     Calculate Euclid distance between each two points.
 
-    src^T * dst = xn * xm + yn * ym + zn * zm；
+    src^T * dst = xn * xm + yn * ym + zn * zm;
     sum(src^2, dim=-1) = xn*xn + yn*yn + zn*zn;
     sum(dst^2, dim=-1) = xm*xm + ym*ym + zm*zm;
     dist = (xn - xm)^2 + (yn - ym)^2 + (zn - zm)^2
@@ -160,7 +160,7 @@ def sample_and_group_all(xyz, points):
 
 class PointNetSetAbstraction(nn.Module):
     def __init__(self, npoint, radius, nsample, in_channel, mlp, group_all):
-        super(PointNetSetAbstraction, self).__init__()
+        super().__init__()
         self.npoint = npoint
         self.radius = radius
         self.nsample = nsample
@@ -204,13 +204,13 @@ class PointNetSetAbstraction(nn.Module):
 
 class PointNetSetAbstractionMsg(nn.Module):
     def __init__(self, npoint, radius_list, nsample_list, in_channel, mlp_list):
-        super(PointNetSetAbstractionMsg, self).__init__()
+        super().__init__()
         self.npoint = npoint
         self.radius_list = radius_list
         self.nsample_list = nsample_list
         self.conv_blocks = nn.ModuleList()
         self.bn_blocks = nn.ModuleList()
-        for i in range(len(mlp_list)):
+        for i, _ in enumerate(mlp_list):
             convs = nn.ModuleList()
             bns = nn.ModuleList()
             last_channel = in_channel + 3
@@ -264,7 +264,7 @@ class PointNetSetAbstractionMsg(nn.Module):
 
 class PointNetFeaturePropagation(nn.Module):
     def __init__(self, in_channel, mlp):
-        super(PointNetFeaturePropagation, self).__init__()
+        super().__init__()
         self.mlp_convs = nn.ModuleList()
         self.mlp_bns = nn.ModuleList()
         last_channel = in_channel

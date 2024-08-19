@@ -121,7 +121,7 @@ def main(args, seg_classes: dict):
             vote_pool = torch.zeros(target.size()[0], target.size()[1], num_part).cuda()
 
             for _ in range(args.num_votes):
-                seg_pred, _ = classifier(points, to_categorical(label, num_classes))
+                seg_pred, _ = classifier(points, to_categorical(label, num_classes)) # model ran here
                 vote_pool += seg_pred
 
             seg_pred = vote_pool / args.num_votes
