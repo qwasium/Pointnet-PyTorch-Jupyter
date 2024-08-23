@@ -53,14 +53,14 @@ def to_categorical(y, num_classes):
 def parse_args():
     '''PARAMETERS'''
     parser = argparse.ArgumentParser('PointNet')
-    parser.add_argument('--batch_size', type=int, default=24, help='batch size in testing')
-    parser.add_argument('--gpu', type=str, default='0', help='specify gpu device')
-    parser.add_argument('--num_point', type=int, default=2048, help='point Number')
-    parser.add_argument('--log_root', type=str, default='log', help='Log directory root')
+    parser.add_argument('--batch_size', type=int, default=24, help='batch size in testing [default: 24]')
+    parser.add_argument('--gpu', type=str, default='0', help='specify gpu device [default: 0]')
+    parser.add_argument('--num_point', type=int, default=2048, help='point Number [default: 2048]')
+    parser.add_argument('--log_root', type=str, default='log', help='Log directory root [default: log]')
     parser.add_argument('--log_dir', type=str, required=True, help='experiment root within log directory')
     parser.add_argument('--normal', action='store_true', default=False, help='use normals')
-    parser.add_argument('--num_votes', type=int, default=3, help='aggregate segmentation scores with voting')
-    parser.add_argument('--data_dir', type=str, default='data/shapenetcore_partanno_segmentation_benchmark_v0_normal', help='data directory')
+    parser.add_argument('--num_votes', type=int, default=3, help='aggregate segmentation scores with voting [default: 3]')
+    parser.add_argument('--data_dir', type=str, default='data/shapenetcore_partanno_segmentation_benchmark_v0_normal', help='data directory [default: data/shapenetcore_partanno_segmentation_benchmark_v0_normal]')
     return parser.parse_args()
 
 

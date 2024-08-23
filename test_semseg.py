@@ -63,7 +63,7 @@ def parse_args():
     parser.add_argument('--visual', action='store_true', default=False, help='visualize result [default: False]')
     parser.add_argument('--test_area', type=int, default=5, help='area for testing, option: 1-6 [default: 5]')
     parser.add_argument('--num_votes', type=int, default=3, help='aggregate segmentation scores with voting [default: 5]')
-    parser.add_argument('--data_dir', type=str, default='data/s3dis/stanford_indoor3d', help='data directory')
+    parser.add_argument('--data_dir', type=str, default='data/s3dis/stanford_indoor3d', help='data directory [default: data/s3dis/stanford_indoor3d]')
     return parser.parse_args()
 
 

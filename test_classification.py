@@ -55,12 +55,12 @@ def parse_args():
     parser.add_argument('--batch_size', type=int, default=24, help='batch size in training')
     parser.add_argument('--num_category', default=40, type=int, choices=[10, 40],  help='training on ModelNet10/40')
     parser.add_argument('--num_point', type=int, default=1024, help='Point Number')
-    parser.add_argument('--log_root', type=str, default='log', help='Log directory root')
+    parser.add_argument('--log_root', type=str, default='log', help='Log directory root [default: log]')
     parser.add_argument('--log_dir', type=str, required=True, help='Experiment root within log directory')
     parser.add_argument('--use_normals', action='store_true', default=False, help='use normals')
     parser.add_argument('--use_uniform_sample', action='store_true', default=False, help='use uniform sampiling')
     parser.add_argument('--num_votes', type=int, default=3, help='Aggregate classification scores with voting')
-    parser.add_argument('--data_dir', type=str, default='data/modelnet40_normal_resampled', help='data directory')
+    parser.add_argument('--data_dir', type=str, default='data/modelnet40_normal_resampled', help='data directory [default: data/modelnet40_normal_resampled]')
     return parser.parse_args()
 
 
