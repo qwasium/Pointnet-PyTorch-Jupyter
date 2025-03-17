@@ -1,23 +1,26 @@
 # Pytorch Implementation of PointNet and PointNet++
 
 This repo is a fork of
-[yanx27's implementation](https://github.com/yanx27/Pointnet_Pointnet2_pytorch)
-for [PointNet](http://openaccess.thecvf.com/content_cvpr_2017/papers/Qi_PointNet_Deep_Learning_CVPR_2017_paper.pdf)
-and [PointNet++](http://papers.nips.cc/paper/7095-pointnet-deep-hierarchical-feature-learning-on-point-sets-in-a-metric-space.pdf) in pytorch.
+[yanx27's torch implementation](https://github.com/yanx27/Pointnet_Pointnet2_pytorch)
+of [PointNet](http://openaccess.thecvf.com/content_cvpr_2017/papers/Qi_PointNet_Deep_Learning_CVPR_2017_paper.pdf)
+and [PointNet++](http://papers.nips.cc/paper/7095-pointnet-deep-hierarchical-feature-learning-on-point-sets-in-a-metric-space.pdf).
 
-This fork is modified so it could...
+This fork features:
 
-- be ran on Jupyter Notebook
-- accept hardcoded parameters as argumennts
-- fixed some errors due to deprecation or platform dependency
-
-aiming to act as a template for other projects trying to use `Pointnet`.
+- Jupyter Notebook compatible
+- Flexible configuration via arguments
 
 ## Update
 
 **2024/08/13:**
 
 Created fork.
+
+(1) Add Jupyter Notebook Example.
+
+(2) Config passed as arguments, which was hard-coded previously.
+
+(3) Removed deprecated code / platform specific code.
 
 **2021/03/27:**
 
