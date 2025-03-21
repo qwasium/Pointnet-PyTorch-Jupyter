@@ -50,29 +50,36 @@ Created fork.
 
 The latest codes are tested on:
 
+- WSL Ubuntu 24.04 on Windows 11 pro 24H2
 - Intel 14700KF/64GB RAM
 - Zotac RTX 4070 Super 12GB
-- Windows 11 pro 23H2
-- Python 3.11.9
-- Nvidia Studio Driver 560.70
-- CUDA toolkit 12.4
-- cuDNN 9.3.0
-- PyTorch 2.3.1
-
-```shell
-git clone https://github.com/qwasium/Pointnet_Pointnet2_pytorch.git
-
-# Use your favorite virtual environment manager. I will use venv here.
-cd ~/.virtualenvs
-python -m venv pointnet_env
-pip install -r requirements.txt
-```
+  - Studio Driver 572.60
+  - CUDA 12.4
+- Python 3.12.3
+  - packages: see `requrements.txt`
 
 ## Classification (ModelNet10/40)
 
 ### Data Preparation
 
-Download alignment **ModelNet** [here](https://shapenet.cs.stanford.edu/media/modelnet40_normal_resampled.zip) and save in `data/modelnet40_normal_resampled/`.
+~~Download alignment **ModelNet** [here](https://shapenet.cs.stanford.edu/media/modelnet40_normal_resampled.zip) and save in `data/modelnet40_normal_resampled/`.~~
+
+The official website is down.
+As of Mar.2025, data is available from:
+
+- [Kaggle](https://www.kaggle.com/datasets/chenxaoyu/modelnet-normal-resampled)
+- [Pointcept Huggingface](https://huggingface.co/datasets/Pointcept/modelnet40_normal_resampled-compressed)
+
+Data tree:
+
+- `<data directory>/modelnet40_normal_resampled/`
+  - `airplane/`
+    - `airplane_0001.txt`
+    - `airplane_0002.txt`
+    - ...
+  - `bathtub/*`
+  - `bed/*`
+  - ...
 
 ### Run
 
@@ -121,18 +128,14 @@ python test_classification.py --log_dir pointnet2_cls_ssg --num_category 10
 
 ### Data Preparation
 
-Download alignment **ShapeNet**
+~~Download alignment **ShapeNet**
 [here](https://shapenet.cs.stanford.edu/media/shapenetcore_partanno_segmentation_benchmark_v0_normal.zip)
-and save in `data/shapenetcore_partanno_segmentation_benchmark_v0_normal/`.
+and save in `data/shapenetcore_partanno_segmentation_benchmark_v0_normal/`.~~
 
-For getting the data, request access through huggingface.
+The official website is down.
+As of Mar. 2025, data is available from:
 
-After granted access, generate a token and download the dataset.
-See [huggingface docs](https://huggingface.co/docs/hub/en/repositories-getting-started) for details.
-
-```shell
-git clone https://huggingface.co/datasets/ShapeNet/ShapeNetCore/ # This will take a while
-```
+- [Kaggle](https://www.kaggle.com/datasets/mitkir/shapenet?resource=download)
 
 ### Run
 
@@ -197,17 +200,6 @@ Visualization results will save in `log/sem_seg/pointnet2_sem_seg/visual/` and y
 cd visualizer
 bash build.sh
 ## run one example
-python show3d_balls.py
-```
-
-```shell
-# Alternatively, you can use cmake
-cd visualizer
-cmake -S . -B .
-cmake --build .
-
-# run one example
-# Don't forget to activate your virtual environment
 python show3d_balls.py
 ```
 
