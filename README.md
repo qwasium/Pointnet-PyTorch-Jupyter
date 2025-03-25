@@ -70,16 +70,6 @@ As of Mar.2025, data is available from:
 - [Kaggle](https://www.kaggle.com/datasets/chenxaoyu/modelnet-normal-resampled)
 - [Pointcept Huggingface](https://huggingface.co/datasets/Pointcept/modelnet40_normal_resampled-compressed)
 
-Data tree:
-
-- `<data directory>/modelnet40_normal_resampled/`
-  - `airplane/`
-    - `airplane_0001.txt`
-    - `airplane_0002.txt`
-    - ...
-  - `bathtub/*`
-  - `bed/*`
-  - ...
 
 ### Run
 
@@ -164,7 +154,9 @@ python test_partseg.py --normal --log_dir pointnet2_part_seg_msg
 [here](http://buildingparser.stanford.edu/dataset.html)
 and save in `data/s3dis/Stanford3dDataset_v1.2_Aligned_Version/`.~~
 
-**NOTE (Aug. 2024)**: The website is down. Need to contact author to access data.
+The official website is down. As of Mar. 2025, data is available from:
+
+- [https://cvg-data.inf.ethz.ch/s3dis/](https://cvg-data.inf.ethz.ch/s3dis/)
 
 ```shell
 cd data_utils

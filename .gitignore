@@ -120,6 +120,7 @@ visualizer/CMakeCache.txt
 
 # IDE
 .vscode/
+.jukit/
 
 # macOS
 .DS_Store
