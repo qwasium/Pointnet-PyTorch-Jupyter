@@ -18,9 +18,9 @@ import provider
 
 from data_utils.ShapeNetDataLoader import PartNormalDataset
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = Path(__file__).parent
 ROOT_DIR = BASE_DIR
-sys.path.append(os.path.join(ROOT_DIR, 'models'))
+sys.path.append(str(ROOT_DIR / 'models'))
 
 
 class CommandLineArgs(argparse.Namespace):
@@ -98,23 +98,23 @@ def main(args, seg_classes: dict):
     timestr = str(datetime.datetime.now().strftime('%Y-%m-%d_%H-%M'))
     exp_dir = Path(args.log_root)
     exp_dir.mkdir(exist_ok=True)
-    exp_dir = exp_dir.joinpath('part_seg')
+    exp_dir = exp_dir / 'part_seg'
     exp_dir.mkdir(exist_ok=True)
     if args.log_dir is None:
-        exp_dir = exp_dir.joinpath(timestr)
+        exp_dir = exp_dir / timestr
     else:
-        exp_dir = exp_dir.joinpath(args.log_dir)
+        exp_dir = exp_dir / args.log_dir
     exp_dir.mkdir(exist_ok=True)
-    checkpoints_dir = exp_dir.joinpath('checkpoints/')
+    checkpoints_dir = exp_dir / 'checkpoints'
     checkpoints_dir.mkdir(exist_ok=True)
-    log_dir = exp_dir.joinpath('logs/')
+    log_dir = exp_dir / 'logs'
     log_dir.mkdir(exist_ok=True)
 
     '''LOG'''
     logger = logging.getLogger("Model")
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    file_handler = logging.FileHandler('%s/%s.txt' % (log_dir, args.model))
+    file_handler = logging.FileHandler(log_dir / f'{args.model}.txt')
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
@@ -153,7 +153,7 @@ def main(args, seg_classes: dict):
             torch.nn.init.constant_(m.bias.data, 0.0)
 
     try:
-        checkpoint = torch.load(Path(exp_dir, 'checkpoints/best_model.pth'))
+        checkpoint = torch.load(checkpoints_dir / 'best_model.pth')
         start_epoch = checkpoint['epoch']
         classifier.load_state_dict(checkpoint['model_state_dict'])
         log_string('Use pretrain model')

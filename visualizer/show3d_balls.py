@@ -3,9 +3,9 @@ import numpy as np
 import ctypes as ct
 import cv2
 import sys
-import os
+from pathlib import Path
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = Path(__file__).parent
 showsz = 800
 mousex, mousey = 0.5, 0.5
 zoom = 1.0

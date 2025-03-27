@@ -3,11 +3,11 @@ Author: Charles R. Qi, Hao Su
 Date: November 2016
 """
 
-import os
 import sys
+from pathlib import Path
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(BASE_DIR)
+BASE_DIR = Path(__file__).parent
+sys.path.append(str(BASE_DIR))
 
 # Draw point cloud
 from visualizer.eulerangles import euler2mat

@@ -14,13 +14,12 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-import provider
 from data_utils.indoor3d_util import g_label2color
 from data_utils.S3DISDataLoader import ScannetDatasetWholeScene
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = Path(__file__).parent
 ROOT_DIR = BASE_DIR
-sys.path.append(os.path.join(ROOT_DIR, "models"))
+sys.path.append(str(ROOT_DIR / "models"))
 
 classes = [
     "ceiling",
@@ -58,6 +57,7 @@ class CommandLineArgs(argparse.Namespace):
             "batch_size": 32,
             "gpu": "0",
             "num_point": 4096,
+            "log_root": "log",
             "log_dir": None,
             "visual": False,
             "test_area": 5,
@@ -79,7 +79,15 @@ def parse_args():
     parser.add_argument(
         "--num_point", type=int, default=4096, help="point number [default: 4096]"
     )
-    parser.add_argument("--log_dir", type=str, required=True, help="experiment root")
+    parser.add_argument(
+        "--log_root", type=str, default="log", help="Log directory root [default: log]"
+    )
+    parser.add_argument(
+        "--log_dir",
+        type=str,
+        required=True,
+        help="experiment root within log directory",
+    )
     parser.add_argument(
         "--visual",
         action="store_true",
@@ -124,9 +132,8 @@ def main(args):
 
     """HYPER PARAMETER"""
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
-    experiment_dir = "log/sem_seg/" + args.log_dir
-    visual_dir = experiment_dir + "/visual/"
-    visual_dir = Path(visual_dir)
+    experiment_dir = Path(args.log_root) / "sem_seg" / args.log_dir
+    visual_dir = experiment_dir / "visual"
     visual_dir.mkdir(exist_ok=True)
 
     """LOG"""
@@ -135,7 +142,7 @@ def main(args):
     formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
-    file_handler = logging.FileHandler("%s/eval.txt" % experiment_dir)
+    file_handler = logging.FileHandler(experiment_dir / "eval.txt")
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
@@ -154,11 +161,11 @@ def main(args):
     log_string("The number of test data is: %d" % len(TEST_DATASET_WHOLE_SCENE))
 
     """MODEL LOADING"""
-    model_name = os.listdir(Path(experiment_dir, "logs"))[0].split(".")[0]
+    model_name = list((experiment_dir / "logs").iterdir())[0].stem
     MODEL = importlib.import_module(model_name)
     classifier = MODEL.get_model(NUM_CLASSES).cuda()
     checkpoint = torch.load(
-        Path(experiment_dir, "checkpoints/best_model.pth"), weights_only=False
+        experiment_dir / "checkpoints/best_model.pth", weights_only=False
     )
     classifier.load_state_dict(checkpoint["model_state_dict"])
     classifier = classifier.eval()

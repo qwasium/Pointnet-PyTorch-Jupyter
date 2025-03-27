@@ -16,9 +16,9 @@ from tqdm import tqdm
 
 from data_utils.ShapeNetDataLoader import PartNormalDataset
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = Path(__file__).parent
 ROOT_DIR = BASE_DIR
-sys.path.append(os.path.join(ROOT_DIR, "models"))
+sys.path.append(str(ROOT_DIR / "models"))
 
 
 class CommandLineArgs(argparse.Namespace):
@@ -100,7 +100,7 @@ def main(args, seg_classes: dict):
 
     """HYPER PARAMETER"""
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
-    experiment_dir = Path(args.log_root + "/part_seg/" + args.log_dir)
+    experiment_dir = Path(args.log_root) / "part_seg" / args.log_dir
 
     """LOG"""
     logger = logging.getLogger("Model")
@@ -108,7 +108,7 @@ def main(args, seg_classes: dict):
     formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
-    file_handler = logging.FileHandler("%s/eval.txt" % experiment_dir)
+    file_handler = logging.FileHandler(experiment_dir / "eval.txt")
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
@@ -134,11 +134,11 @@ def main(args, seg_classes: dict):
     )  # 50
 
     """MODEL LOADING"""
-    model_name = os.listdir(Path(experiment_dir, "logs"))[0].split(".")[0]
+    model_name = list((experiment_dir / "logs").iterdir())[0].stem
     MODEL = importlib.import_module(model_name)
     classifier = MODEL.get_model(num_part, normal_channel=args.normal).cuda()
     checkpoint = torch.load(
-        Path(experiment_dir, "checkpoints", "best_model.pth"), weights_only=False
+        experiment_dir / "checkpoints" / "best_model.pth", weights_only=False
     )
     classifier.load_state_dict(checkpoint["model_state_dict"])
 

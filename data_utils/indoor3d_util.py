@@ -1,33 +1,31 @@
-import glob
-import os
 import sys
+from pathlib import Path
+from warnings import warn
 
 import numpy as np
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = os.path.dirname(BASE_DIR)
-sys.path.append(BASE_DIR)
+BASE_DIR = Path(__file__).parent
+ROOT_DIR = BASE_DIR.parent
+sys.path.append(str(BASE_DIR))
 
-# DATA_PATH = os.path.join(
-#     ROOT_DIR, "data", "s3dis", "Stanford3dDataset_v1.2_Aligned_Version"
-# )
-g_classes = [x.rstrip() for x in open(os.path.join(BASE_DIR, "meta/class_names.txt"))]
+# DATA_PATH = ROOT_DIR / "data" / "s3dis" / "Stanford3dDataset_v1.2_Aligned_Version"
+g_classes = [x.rstrip() for x in open(BASE_DIR / "meta/class_names.txt")]
 g_class2label = {cls: i for i, cls in enumerate(g_classes)}
 # fmt: off
 g_class2color = {
-    "ceiling" : [0, 255, 0],
-    "floor"   : [0, 0, 255],
-    "wall"    : [0, 255, 255],
-    "beam"    : [255, 255, 0],
-    "column"  : [255, 0, 255],
+    "ceiling" : [0,   255, 0  ],
+    "floor"   : [0,   0,   255],
+    "wall"    : [0,   255, 255],
+    "beam"    : [255, 255, 0  ],
+    "column"  : [255, 0,   255],
     "window"  : [100, 100, 255],
     "door"    : [200, 200, 100],
     "table"   : [170, 120, 200],
-    "chair"   : [255, 0, 0],
+    "chair"   : [255, 0,   0  ],
     "sofa"    : [200, 100, 100],
-    "bookcase": [10, 200, 100],
+    "bookcase": [10,  200, 100],
     "board"   : [200, 200, 200],
-    "clutter" : [50, 50, 50],
+    "clutter" : [50,  50,  50 ],
 }
 # fmt: on
 g_easy_view_labels = [7, 8, 9, 10, 11, 1]
@@ -39,7 +37,12 @@ g_label2color = {g_classes.index(cls): g_class2color[cls] for cls in g_classes}
 # -----------------------------------------------------------------------------
 
 
-def collect_point_label(anno_path, out_filename, file_format="txt"):
+def collect_point_label(
+    anno_path: Path | str,
+    out_filename: Path | str,
+    file_format: str = "txt",
+    skip_existing: bool = False,
+) -> None:
     """Convert original dataset files to data_label file (each line is XYZRGBL).
         We aggregated all the points from each instance in the room.
 
@@ -47,19 +50,32 @@ def collect_point_label(anno_path, out_filename, file_format="txt"):
         anno_path: path to annotations. e.g. Area_1/office_2/Annotations/
         out_filename: path to save collected points and labels (each line is XYZRGBL)
         file_format: txt or numpy, determines what file format to save.
+        skip_existing: if out_filename exist,
+            - True: do nothing and return.
+            - False: overwrite.
     Returns:
         None
     Note:
         the points are shifted before save, the most negative point is now at origin.
     """
+    out_filename = Path(out_filename)
+    if skip_existing and out_filename.exists():
+        return
+    anno_path = Path(anno_path)
     points_list = []
-    for f in glob.glob(os.path.join(anno_path, "*.txt")):
-        cls = os.path.basename(f).split("_")[0]
+    for f in anno_path.glob("*.txt"):
         print(f)
+        cls = f.name.split("_")[0]
         if cls not in g_classes:  # note: in some room there is 'staris' class..
             cls = "clutter"
+        try:
+            points = np.loadtxt(f)
+        except ValueError as err:
+            if "Area_5" in f.parts and "hallway_6" in f.parts:
+                warn(f"There is an extra character in v1.2 data; fix it and rerun: {f}")
+                return
+            raise err
 
-        points = np.loadtxt(f)
         labels = np.ones((points.shape[0], 1)) * g_class2label[cls]
         points_list.append(np.concatenate([points, labels], 1))  # Nx7
 
@@ -68,28 +84,24 @@ def collect_point_label(anno_path, out_filename, file_format="txt"):
     data_label[:, 0:3] -= xyz_min
 
     if file_format == "txt":
-        fout = open(out_filename, "w")
-        for i in range(data_label.shape[0]):
-            fout.write(
-                "%f %f %f %d %d %d %d\n"
-                % (
-                    data_label[i, 0],
-                    data_label[i, 1],
-                    data_label[i, 2],
-                    data_label[i, 3],
-                    data_label[i, 4],
-                    data_label[i, 5],
-                    data_label[i, 6],
+        with open(out_filename, "w") as fout:
+            for i in range(data_label.shape[0]):
+                fout.write(
+                    "%f %f %f %d %d %d %d\n"
+                    % (
+                        data_label[i, 0],
+                        data_label[i, 1],
+                        data_label[i, 2],
+                        data_label[i, 3],
+                        data_label[i, 4],
+                        data_label[i, 5],
+                        data_label[i, 6],
+                    )
                 )
-            )
-        fout.close()
     elif file_format == "numpy":
         np.save(out_filename, data_label)
     else:
-        print(
-            "ERROR!! Unknown file format: %s, please use txt or numpy." % (file_format)
-        )
-        exit()
+        raise ValueError(f"Use .txt or numpy: {file_format}")
 
 
 def data_to_obj(data, name="example.obj", no_wall=True):
@@ -448,8 +460,8 @@ def collect_bounding_box(anno_path, out_filename):
     """
     bbox_label_list = []
 
-    for f in glob.glob(os.path.join(anno_path, "*.txt")):
-        cls = os.path.basename(f).split("_")[0]
+    for f in glob.glob(anno_path / "*.txt"):
+        cls = f.name.split("_")[0]
         if cls not in g_classes:  # note: in some room there is 'staris' class..
             cls = "clutter"
         points = np.loadtxt(f)
@@ -671,8 +683,8 @@ def collect_point_bounding_box(anno_path, out_filename, file_format):
     """
     point_bbox_list = []
 
-    for f in glob.glob(os.path.join(anno_path, "*.txt")):
-        cls = os.path.basename(f).split("_")[0]
+    for f in glob.glob(anno_path / "*.txt"):
+        cls = f.name.split("_")[0]
         if cls not in g_classes:  # note: in some room there is 'staris' class..
             cls = "clutter"
         points = np.loadtxt(f)  # Nx6

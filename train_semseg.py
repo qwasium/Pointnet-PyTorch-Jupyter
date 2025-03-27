@@ -20,9 +20,9 @@ from tqdm import tqdm
 import provider
 from data_utils.S3DISDataLoader import S3DISDataset
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = Path(__file__).parent
 ROOT_DIR = BASE_DIR
-sys.path.append(os.path.join(ROOT_DIR, "models"))
+sys.path.append(str(ROOT_DIR / "models"))
 
 classes = [
     "ceiling",
@@ -64,6 +64,7 @@ class CommandLineArgs(argparse.Namespace):
             "gpu": "0",
             "optimizer": "Adam",
             "log_dir": None,
+            "log_root": "log",
             "decay_rate": 1e-4,
             "npoint": 4096,
             "step_size": 10,
@@ -112,6 +113,9 @@ def parse_args():
         "--optimizer", type=str, default="Adam", help="Adam or SGD [default: Adam]"
     )
     parser.add_argument(
+        "--log_root", type=str, default="log", help="Log root directory [default: log]"
+    )
+    parser.add_argument(
         "--log_dir", type=str, default=None, help="Log path [default: None]"
     )
     parser.add_argument(
@@ -157,18 +161,18 @@ def main(args):
 
     """CREATE DIR"""
     timestr = str(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M"))
-    experiment_dir = Path("./log/")
+    experiment_dir = Path(args.log_root)
     experiment_dir.mkdir(exist_ok=True)
-    experiment_dir = experiment_dir.joinpath("sem_seg")
+    experiment_dir = experiment_dir / "sem_seg"
     experiment_dir.mkdir(exist_ok=True)
     if args.log_dir is None:
-        experiment_dir = experiment_dir.joinpath(timestr)
+        experiment_dir = experiment_dir / timestr
     else:
-        experiment_dir = experiment_dir.joinpath(args.log_dir)
+        experiment_dir = experiment_dir / args.log_dir
     experiment_dir.mkdir(exist_ok=True)
-    checkpoints_dir = experiment_dir.joinpath("checkpoints/")
+    checkpoints_dir = experiment_dir / "checkpoints"
     checkpoints_dir.mkdir(exist_ok=True)
-    log_dir = experiment_dir.joinpath("logs/")
+    log_dir = experiment_dir / "logs"
     log_dir.mkdir(exist_ok=True)
 
     """LOG"""
@@ -177,7 +181,7 @@ def main(args):
     formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
-    file_handler = logging.FileHandler("%s/%s.txt" % (log_dir, args.model))
+    file_handler = logging.FileHandler(log_dir / f"{args.model}.txt")
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
