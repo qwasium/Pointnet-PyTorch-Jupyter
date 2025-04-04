@@ -185,7 +185,7 @@ def main(args, seg_classes: dict):
     best_acc = 0
     global_epoch = 0
     best_class_avg_iou = 0
-    best_inctance_avg_iou = 0
+    best_instance_avg_iou = 0
 
     for epoch in range(start_epoch, args.epoch):
         mean_correct = []
@@ -293,11 +293,11 @@ def main(args, seg_classes: dict):
             for cat in sorted(shape_ious.keys()):
                 log_string('eval mIoU of %s %f' % (cat + ' ' * (14 - len(cat)), shape_ious[cat]))
             test_metrics['class_avg_iou'] = mean_shape_ious
-            test_metrics['inctance_avg_iou'] = np.mean(all_shape_ious)
+            test_metrics['instance_avg_iou'] = np.mean(all_shape_ious)
 
-        log_string('Epoch %d test Accuracy: %f  Class avg mIOU: %f   Inctance avg mIOU: %f' % (
-            epoch + 1, test_metrics['accuracy'], test_metrics['class_avg_iou'], test_metrics['inctance_avg_iou']))
-        if (test_metrics['inctance_avg_iou'] >= best_inctance_avg_iou):
+        log_string('Epoch %d test Accuracy: %f  Class avg mIOU: %f   Instance avg mIOU: %f' % (
+            epoch + 1, test_metrics['accuracy'], test_metrics['class_avg_iou'], test_metrics['instance_avg_iou']))
+        if (test_metrics['instance_avg_iou'] >= best_instance_avg_iou):
             logger.info('Save model...')
             savepath = str(checkpoints_dir) + '/best_model.pth'
             log_string('Saving at %s' % savepath)
@@ -306,7 +306,7 @@ def main(args, seg_classes: dict):
                 'train_acc': train_instance_acc,
                 'test_acc': test_metrics['accuracy'],
                 'class_avg_iou': test_metrics['class_avg_iou'],
-                'inctance_avg_iou': test_metrics['inctance_avg_iou'],
+                'instance_avg_iou': test_metrics['instance_avg_iou'],
                 'model_state_dict': classifier.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
             }
@@ -317,11 +317,11 @@ def main(args, seg_classes: dict):
             best_acc = test_metrics['accuracy']
         if test_metrics['class_avg_iou'] > best_class_avg_iou:
             best_class_avg_iou = test_metrics['class_avg_iou']
-        if test_metrics['inctance_avg_iou'] > best_inctance_avg_iou:
-            best_inctance_avg_iou = test_metrics['inctance_avg_iou']
+        if test_metrics['instance_avg_iou'] > best_instance_avg_iou:
+            best_instance_avg_iou = test_metrics['instance_avg_iou']
         log_string('Best accuracy is: %.5f' % best_acc)
         log_string('Best class avg mIOU is: %.5f' % best_class_avg_iou)
-        log_string('Best inctance avg mIOU is: %.5f' % best_inctance_avg_iou)
+        log_string('Best instance avg mIOU is: %.5f' % best_instance_avg_iou)
         global_epoch += 1
 
         return test_metrics

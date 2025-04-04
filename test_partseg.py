@@ -226,12 +226,12 @@ def main(args, seg_classes: dict):
                 "eval mIoU of %s %f" % (cat + " " * (14 - len(cat)), shape_ious[cat])
             )
         test_metrics["class_avg_iou"] = mean_shape_ious
-        test_metrics["inctance_avg_iou"] = np.mean(all_shape_ious)
+        test_metrics["instance_avg_iou"] = np.mean(all_shape_ious)
 
     log_string("Accuracy is: %.5f" % test_metrics["accuracy"])
     log_string("Class avg accuracy is: %.5f" % test_metrics["class_avg_accuracy"])
     log_string("Class avg mIOU is: %.5f" % test_metrics["class_avg_iou"])
-    log_string("Inctance avg mIOU is: %.5f" % test_metrics["inctance_avg_iou"])
+    log_string("Inctance avg mIOU is: %.5f" % test_metrics["instance_avg_iou"])
 
     return test_metrics, shape_ious, total_correct_class, total_seen_class
 

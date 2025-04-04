@@ -51,12 +51,17 @@ Created fork.
 The latest codes are tested on:
 
 - WSL Ubuntu 24.04 on Windows 11 pro 24H2
-- Intel 14700KF/64GB RAM
-- Zotac RTX 4070 Super 12GB
-  - Studio Driver 572.60
-  - CUDA 12.4
+  - Intel 14700KF/64GB RAM
+  - Zotac RTX 4070 Super 12GB
+    - Studio Driver 572.60
+    - CUDA 12.4
+- Ubuntu 20.04
+  - Xeon Gold
+  - V100 SXM2 32GB
 - Python 3.12.3
-  - packages: see `requrements.txt`
+  - packages:
+    - pip: `requrements.txt`
+    - conda: `environment.yml`
 
 ## Classification (ModelNet10/40)
 
