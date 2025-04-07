@@ -60,6 +60,7 @@ The latest codes are tested on:
 - Ubuntu 20.04
   - Intel Xeon Gold 6254 * 2/768GB RAM
   - Nvidia Tesla V100 SXM2 32GB * 8
+    - Driver 525.60.13
   - Python 3.12.9
     - conda: `environment.yml`
 
