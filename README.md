@@ -55,12 +55,12 @@ The latest codes are tested on:
   - Zotac RTX 4070 Super 12GB
     - Studio Driver 572.60
     - CUDA 12.4
-- Ubuntu 20.04
-  - Xeon Gold
-  - V100 SXM2 32GB
-- Python 3.12.3
-  - packages:
+  - Python 3.12.3
     - pip: `requrements.txt`
+- Ubuntu 20.04
+  - Intel Xeon Gold 6254 * 2/768GB RAM
+  - Nvidia Tesla V100 SXM2 32GB * 8
+  - Python 3.12.9
     - conda: `environment.yml`
 
 ## Classification (ModelNet10/40)
