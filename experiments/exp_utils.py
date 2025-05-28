@@ -1,11 +1,78 @@
 from pathlib import Path
 import os
 
-class Utils:
+import pandas as pd
+
+class PointnetPath:
+    """Hold paths for pointnet parameters.
+    Minimum usage:
+        this_path = GenPath().HERE
+
+    Code map:
+    - qwa-work/                  : QW_REPO
+      - data/                    : DATA_ROOT
+        - pointnet-log/          : log_root
+          - <experiment name>/   : log_dir (fold name string)
+      - pointnet-pytorch-jupyter : PN_REPO
+        - data/
+          - <experiment name>/   : data_dir
+        - experiments/           : HERE
+          - exp_utils.py         : Path(__file__)
+    """
+
+    def __init__(self, exp_name: str):
+        self.HERE = PointnetPath.where_am_i()
+        self.log_dir = exp_name
+
+        # pointnet-pytorch-jupyter repo
+        self.PN_REPO = Path(self.HERE, "..").resolve()
+        assert self.PN_REPO.exists(), "Pointnet repo doesn't exist."
+
+        # qwa-work repo
+        self.QW_REPO = Path(self.PN_REPO, "..").resolve()
+        assert self.QW_REPO.exists(), "qwa-work repo doesn't exist."
+
+        # qwa-work/data
+        self.DATA_ROOT = self.QW_REPO / "data"
+        assert self.DATA_ROOT.exists(), "qwa-work/data doesn't exist."
+
+        # qwa-work/data/pointnet-log
+        self.log_root = self.DATA_ROOT / "pointnet-log"
+        self.log_root.mkdir(exist_ok=True)
+
+        # pointnet-pytorch-jupyter/data
+        self.data_dir = self.PN_REPO / "data" / self.log_dir
+        self.data_dir.parent.mkdir(exist_ok=True)
+
     @staticmethod
     def where_am_i() -> Path:
         """Return location of this file in full path(Jupyter Notebook can't use __file__)"""
         return Path(__file__).resolve().parent
+
+class PointCloudTable:
+
+    @staticmethod
+    def prep(
+        pc_df: pd.DataFrame, cols: list[str], label_map: dict[int, int], drop_label: int = 24
+    ) -> pd.DataFrame | None:
+        """
+        Parameters
+        ----------
+        pc_df: pandas.DataFrame
+            Point cloud data with x,y,z,nx,ny,nz,r,g,b,h,s,v,l,a,b,label,uuid
+        cols: list[str]
+            List of columns to return. Anything else is dropped.
+        label_map: dict[int, int]
+            Mapping of label number. {input label: output label}
+        drop_label: int
+            If pc_df["label"] has drop_label, return. Default 24 is "leaves-fruit".
+        """
+        if drop_label is not None:
+            if drop_label in pc_df["label"].unique():
+                return
+        return pc_df.replace(label_map)[cols]
+
+        
 
 class JumpDir:
     """

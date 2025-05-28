@@ -20,7 +20,7 @@ from data_utils.ShapeNetDataLoader import PartNormalDataset
 
 BASE_DIR = Path(__file__).parent
 ROOT_DIR = BASE_DIR
-sys.path.append(str(ROOT_DIR / 'models'))
+# sys.path.append(str(ROOT_DIR / 'models'))
 
 
 class CommandLineArgs(argparse.Namespace):
@@ -34,20 +34,22 @@ class CommandLineArgs(argparse.Namespace):
         super().__init__(**kwargs)
         # define default arguments
         default_args = {
-            'model': 'pointnet_part_seg',
-            'batch_size': 16,
-            'epoch': 251,
+            # fmt: off
+            'model'        : 'pointnet_part_seg',
+            'batch_size'   : 16,
+            'epoch'        : 251,
             'learning_rate': 0.001,
-            'gpu': '0',
-            'optimizer': 'Adam',
-            'log_dir': None,
-            'log_root': 'log',
-            'decay_rate': 1e-4,
-            'npoint': 2048,
-            'normal': False,
-            'step_size': 20,
-            'lr_decay': 0.5,
-            'data_dir': 'data/shapenetcore_partanno_segmentation_benchmark_v0_normal'
+            'gpu'          : '0',
+            'optimizer'    : 'Adam',
+            'log_dir'      : None,
+            'log_root'     : 'log',
+            'decay_rate'   : 1e-4,
+            'npoint'       : 2048,
+            'normal'       : False,
+            'step_size'    : 20,
+            'lr_decay'     : 0.5,
+            'data_dir'     : 'data/shapenetcore_partanno_segmentation_benchmark_v0_normal'
+            # fmt: on
         }
         for key, value in default_args.items():
             if not self.__contains__(key):
@@ -135,9 +137,12 @@ def main(args, seg_classes: dict):
     num_part = 50
 
     '''MODEL LOADING'''
-    MODEL = importlib.import_module(args.model)
+    pwd = os.getcwd()
+    os.chdir(ROOT_DIR)
+    MODEL = importlib.import_module("models." + args.model)
     # shutil.copy('models/%s.py' % args.model, str(exp_dir))
     # shutil.copy('models/pointnet2_utils.py', str(exp_dir))
+    os.chdir(pwd)
 
     classifier = MODEL.get_model(num_part, normal_channel=args.normal).cuda()
     criterion = MODEL.get_loss().cuda()
