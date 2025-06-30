@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import sys
 
 import pandas as pd
 
@@ -55,7 +56,8 @@ class PointCloudTable:
     def prep(
         pc_df: pd.DataFrame, cols: list[str], label_map: dict[int, int], drop_label: int = 24
     ) -> pd.DataFrame | None:
-        """
+        """Pass pandas dataframe and return only specified columns.
+
         Parameters
         ----------
         pc_df: pandas.DataFrame
@@ -71,8 +73,6 @@ class PointCloudTable:
             if drop_label in pc_df["label"].unique():
                 return
         return pc_df.replace(label_map)[cols]
-
-        
 
 class JumpDir:
     """
@@ -117,4 +117,40 @@ class JumpDir:
 
     def __exit__(self, exc_type, exc_value, traceback):
         os.chdir(self.home)
+
+class AddPath:
+    """
+    safely add a path to sys.path for importing modules
+
+    sys.path.insert might not add the path if it is already there
+    and sys.path.remove might remove the wrong path if it occurs
+
+    reference:
+    https://stackoverflow.com/questions/17211078/how-to-temporarily-modify-sys-path-in-python
+
+    Parameters
+    ----------
+    path : str | pathlib.Path
+        path to add to sys.path
+        always absolute path
+
+    Example
+    -------
+    lib_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'path', 'to', 'lib')
+    with AddPath(lib_path):
+        module = __import__('mymodule')
+
+    """
+
+    def __init__(self, path: str | Path):
+        self.path = str(Path(path).resolve())
+
+    def __enter__(self):
+        sys.path.insert(0, self.path)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        try:
+            sys.path.remove(self.path)
+        except ValueError:
+            pass
 
