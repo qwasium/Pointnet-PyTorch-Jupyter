@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from tqdm import tqdm
+from tqdm import tqdm, tqdm_notebook
 
 from data_utils.ShapeNetDataLoader import PartNormalDataset
 
@@ -32,14 +32,17 @@ class CommandLineArgs(argparse.Namespace):
         super().__init__(**kwargs)
         # define default arguments
         default_args = {
+            # fmt: off
             "batch_size": 24,
-            "gpu": "0",
-            "num_point": 2048,
-            "log_root": "log",
-            "log_dir": None,
-            "normal": False,
-            "num_votes": 3,
-            "data_dir": "data/shapenetcore_partanno_segmentation_benchmark_v0_normal",
+            "gpu"       : "0", # str
+            "num_point" : 2048,
+            "log_root"  : "log",
+            "log_dir"   : None,
+            "normal"    : False,
+            "num_votes" : 3,
+            "data_dir"  : "data/shapenetcore_partanno_segmentation_benchmark_v0_normal",
+            'notebook'  : False
+            # fmt: on
         }
         for key, value in default_args.items():
             if not self.__contains__(key):
@@ -89,6 +92,12 @@ def parse_args():
         type=str,
         default="data/shapenetcore_partanno_segmentation_benchmark_v0_normal",
         help="data directory [default: data/shapenetcore_partanno_segmentation_benchmark_v0_normal]",
+    )
+    parser.add_argument(
+        "--notebook",
+        action="store_true",
+        default=False,
+        help="set if running from jupyter notebook.",
     )
     return parser.parse_args()
 
@@ -156,9 +165,15 @@ def main(args, seg_classes: dict):
                 seg_label_to_cat[label] = cat
 
         classifier = classifier.eval()
-        for _batch_id, (points, label, target) in tqdm(
-            enumerate(testDataLoader), total=len(testDataLoader), smoothing=0.9
-        ):
+        if args.notebook:
+            test_iter = tqdm_notebook(
+                enumerate(testDataLoader), total=len(testDataLoader), smoothing=0.9
+            )
+        else:
+            test_iter = tqdm(
+                enumerate(testDataLoader), total=len(testDataLoader), smoothing=0.9
+            )
+        for _, (points, label, target) in test_iter:
             cur_batch_size, NUM_POINT, _ = points.size()
             points, label, target = (
                 points.float().cuda(),
@@ -231,7 +246,7 @@ def main(args, seg_classes: dict):
     log_string("Accuracy is: %.5f" % test_metrics["accuracy"])
     log_string("Class avg accuracy is: %.5f" % test_metrics["class_avg_accuracy"])
     log_string("Class avg mIOU is: %.5f" % test_metrics["class_avg_iou"])
-    log_string("Inctance avg mIOU is: %.5f" % test_metrics["instance_avg_iou"])
+    log_string("Instance avg mIOU is: %.5f" % test_metrics["instance_avg_iou"])
 
     return test_metrics, shape_ious, total_correct_class, total_seen_class
 

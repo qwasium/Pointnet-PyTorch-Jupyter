@@ -3,7 +3,7 @@ from pathlib import Path
 
 import numpy as np
 from torch.utils.data import Dataset
-from tqdm import tqdm
+from tqdm import tqdm, tqdm_notebook
 
 
 class S3DISDataset(Dataset):
@@ -16,6 +16,7 @@ class S3DISDataset(Dataset):
         block_size=1.0,
         sample_rate=1.0,
         transform=None,
+        notebook=False,
     ):
         super().__init__()
         self.num_point = num_point
@@ -37,7 +38,11 @@ class S3DISDataset(Dataset):
         num_point_all = []
         labelweights = np.zeros(13)
 
-        for room_name in tqdm(rooms_split, total=len(rooms_split)):
+        if notebook:
+            data_iter = tqdm_notebook(rooms_split, total=len(rooms_split))
+        else:
+            data_iter = tqdm(rooms_split, total=len(rooms_split))
+        for room_name in data_iter:
             room_path = os.path.join(data_root, room_name)
             room_data = np.load(room_path)  # xyzrgbl, N*7
             points, labels = room_data[:, 0:6], room_data[:, 6]  # xyzrgb, N*6; l, N
@@ -291,4 +296,3 @@ if __name__ == "__main__":
         for i, (input, target) in enumerate(train_loader):
             print("time: {}/{}--{}".format(i + 1, len(train_loader), time.time() - end))
             end = time.time()
-

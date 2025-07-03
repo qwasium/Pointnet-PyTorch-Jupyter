@@ -14,8 +14,9 @@ from pathlib import Path
 
 import numpy as np
 import torch
+
 # import shutil
-from tqdm import tqdm
+from tqdm import tqdm, tqdm_notebook
 
 import provider
 from data_utils.S3DISDataLoader import S3DISDataset
@@ -57,20 +58,23 @@ class CommandLineArgs(argparse.Namespace):
         super().__init__(**kwargs)
         # define default arguments
         default_args = {
-            "model": "pointnet_sem_seg",
-            "batch_size": 16,
-            "epoch": 32,
+            # fmt: off
+            "model"        : "pointnet_sem_seg",
+            "batch_size"   : 16,
+            "epoch"        : 32,
             "learning_rate": 0.001,
-            "gpu": "0",
-            "optimizer": "Adam",
-            "log_dir": None,
-            "log_root": "log",
-            "decay_rate": 1e-4,
-            "npoint": 4096,
-            "step_size": 10,
-            "lr_decay": 0.7,
-            "test_area": 5,
-            "data_dir": "data/stanford_indoor3d/",
+            "gpu"          : "0",
+            "optimizer"    : "Adam",
+            "log_dir"      : None,
+            "log_root"     : "log",
+            "decay_rate"   : 1e-4,
+            "npoint"       : 4096,
+            "step_size"    : 10,
+            "lr_decay"     : 0.7,
+            "test_area"    : 5,
+            "data_dir"     : "data/stanford_indoor3d/",
+            'notebook'     : False
+            # fmt: on
         }
         for key, value in default_args.items():
             if not self.__contains__(key):
@@ -148,6 +152,12 @@ def parse_args():
         default="data/stanford_indoor3d/",
         help="data directory [default: data/stanford_indoor3d/]",
     )
+    parser.add_argument(
+        "--notebook",
+        action="store_true",
+        default=False,
+        help="set if running from jupyter notebook.",
+    )
     return parser.parse_args()
 
 
@@ -202,6 +212,7 @@ def main(args):
         block_size=1.0,
         sample_rate=1.0,
         transform=None,
+        notebook=args.notebook,
     )
     print("start loading test data ...")
     TEST_DATASET = S3DISDataset(
@@ -212,6 +223,7 @@ def main(args):
         block_size=1.0,
         sample_rate=1.0,
         transform=None,
+        notebook=args.notebook,
     )
 
     trainDataLoader = torch.utils.data.DataLoader(
@@ -314,9 +326,15 @@ def main(args):
         loss_sum = 0
         classifier = classifier.train()
 
-        for _, (points, target) in tqdm(
-            enumerate(trainDataLoader), total=len(trainDataLoader), smoothing=0.9
-        ):
+        if args.notebook:
+            train_iter = tqdm_notebook(
+                enumerate(trainDataLoader), total=len(trainDataLoader), smoothing=0.9
+            )
+        else:
+            train_iter = tqdm(
+                enumerate(trainDataLoader), total=len(trainDataLoader), smoothing=0.9
+            )
+        for _, (points, target) in train_iter:
             optimizer.zero_grad()
 
             points = points.data.numpy()
@@ -367,9 +385,15 @@ def main(args):
             classifier = classifier.eval()
 
             log_string("---- EPOCH %03d EVALUATION ----" % (global_epoch + 1))
-            for _, (points, target) in tqdm(
-                enumerate(testDataLoader), total=len(testDataLoader), smoothing=0.9
-            ):
+            if args.notebook:
+                train_iter = tqdm_notebook(
+                    enumerate(testDataLoader), total=len(testDataLoader), smoothing=0.9
+                )
+            else:
+                train_iter = tqdm(
+                    enumerate(testDataLoader), total=len(testDataLoader), smoothing=0.9
+                )
+            for _, (points, target) in train_iter:
                 points = points.data.numpy()
                 points = torch.Tensor(points)
                 points, target = points.float().cuda(), target.long().cuda()

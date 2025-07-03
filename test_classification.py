@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from tqdm import tqdm
+from tqdm import tqdm, tqdm_notebook
 
 from data_utils.ModelNetDataLoader import ModelNetDataLoader
 
@@ -32,17 +32,20 @@ class CommandLineArgs(argparse.Namespace):
         super().__init__(**kwargs)
         # define default arguments
         default_args = {
-            "use_cpu": False,
-            "gpu": "0",
-            "batch_size": 24,
-            "num_category": 40,
-            "num_point": 1024,
-            "log_dir": None,
-            "log_root": "log",
-            "use_normals": False,
+            # fmt: off
+            "use_cpu"           : False,
+            "gpu"               : "0", # str
+            "batch_size"        : 24,
+            "num_category"      : 40,
+            "num_point"         : 1024,
+            "log_dir"           : None,
+            "log_root"          : "log",
+            "use_normals"       : False,
             "use_uniform_sample": False,
-            "num_votes": 3,
-            "data_dir": "data/modelnet40_normal_resampled",
+            "num_votes"         : 3,
+            "data_dir"          : "data/modelnet40_normal_resampled",
+            'notebook'          : False
+            # fmt: on
         }
         for key, value in default_args.items():
             if not self.__contains__(key):
@@ -97,6 +100,12 @@ def parse_args():
         default="data/modelnet40_normal_resampled",
         help="data directory [default: data/modelnet40_normal_resampled]",
     )
+    parser.add_argument(
+        "--notebook",
+        action="store_true",
+        default=False,
+        help="set if running from jupyter notebook.",
+    )
     return parser.parse_args()
 
 
@@ -105,7 +114,11 @@ def test(args, model, loader, num_class=40, vote_num=1):
     classifier = model.eval()
     class_acc = np.zeros((num_class, 3))
 
-    for _, (points, target) in tqdm(enumerate(loader), total=len(loader)):
+    if args.notebook:
+        test_iter = tqdm_notebook(enumerate(loader), total=len(loader))
+    else:
+        test_iter = tqdm(enumerate(loader), total=len(loader))
+    for _, (points, target) in test_iter:
         if not args.use_cpu:
             points, target = points.cuda(), target.cuda()
 

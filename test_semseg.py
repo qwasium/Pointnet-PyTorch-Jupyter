@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from tqdm import tqdm
+from tqdm import tqdm, tqdm_notebook
 
 from data_utils.indoor3d_util import g_label2color
 from data_utils.S3DISDataLoader import ScannetDatasetWholeScene
@@ -54,15 +54,18 @@ class CommandLineArgs(argparse.Namespace):
         super().__init__(**kwargs)
         # define default arguments
         default_args = {
+            # fmt: off
             "batch_size": 32,
-            "gpu": "0",
-            "num_point": 4096,
-            "log_root": "log",
-            "log_dir": None,
-            "visual": False,
-            "test_area": 5,
-            "num_votes": 3,
-            "data_dir": "data/s3dis/stanford_indoor3d",
+            "gpu"       : "0", # str
+            "num_point" : 4096,
+            "log_root"  : "log",
+            "log_dir"   : None,
+            "visual"    : False,
+            "test_area" : 5,
+            "num_votes" : 3,
+            "data_dir"  : "data/s3dis/stanford_indoor3d",
+            'notebook'  : False
+            # fmt: on
         }
         for key, value in default_args.items():
             if not self.__contains__(key):
@@ -111,6 +114,12 @@ def parse_args():
         type=str,
         default="data/s3dis/stanford_indoor3d",
         help="data directory [default: data/s3dis/stanford_indoor3d]",
+    )
+    parser.add_argument(
+        "--notebook",
+        action="store_true",
+        default=False,
+        help="set if running from jupyter notebook.",
     )
     return parser.parse_args()
 
@@ -200,7 +209,11 @@ def main(args):
             whole_scene_data = TEST_DATASET_WHOLE_SCENE.scene_points_list[batch_idx]
             whole_scene_label = TEST_DATASET_WHOLE_SCENE.semantic_labels_list[batch_idx]
             vote_label_pool = np.zeros((whole_scene_label.shape[0], NUM_CLASSES))
-            for _ in tqdm(range(args.num_votes), total=args.num_votes):
+            if args.notebook:
+                test_iter = tqdm_notebook(range(args.num_votes), total=args.num_votes)
+            else:
+                test_iter = tqdm(range(args.num_votes), total=args.num_votes)
+            for _ in test_iter:
                 scene_data, scene_label, scene_smpw, scene_point_index = (
                     TEST_DATASET_WHOLE_SCENE[batch_idx]
                 )
