@@ -133,3 +133,6 @@ log/
 
 # local tests
 test/
+
+# experiments
+experiments/

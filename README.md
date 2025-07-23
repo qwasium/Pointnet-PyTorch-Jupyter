@@ -12,6 +12,12 @@ This fork features:
 
 ## Update
 
+**2025/07/23:**
+
+(1) Added infer_partseg.py.
+
+(2) Split Jupyter Notebook Example.
+
 **2024/08/13:**
 
 Created fork.
@@ -64,7 +70,71 @@ The latest codes are tested on:
   - Python 3.12.9
     - conda: `environment.yml`
 
+## Code Tree
+
+- `Pointnet_Pointnet2_pytorch/`
+  - `data/*`: Default location for data.
+  - `data_utils/*`: Data Loader.
+  - `models/*`: Model file, `torch.nn.Module` classes. See below for more details.
+  - `log/*`: log and output of trained model.
+  - `visualize/*`: Visualization code. This is independent of the main code.
+  - `test_*.py`: Predeiction codes.
+  - `train_*.py`: Training codes.
+
+## Data directory
+
+This could be named anything and placed anywhere, as long as its path is passed to the argument.
+
+- `data/`: Data directory, create this manually.
+  - `modelnet40_normal_resampled/*`: ModelNet40 dataset.
+  - `shapenetcore_partanno_segmentation_benchmark_v0_normal/*`: ShapeNet dataset.
+  - `Stanford3dDataset_v1.2_Aligned_Version/*`: S3DIS dataset.
+  - (`stanford_indoor3d/*`): S3DIS dataset converted by `data_utils/collect_indoor3d_data.py`.
+
+For details, see below sections for each model.
+
+## Models
+
+When running `main()`, the argument `--model` will specify the model to be used.
+It will search the directory `models/` for a file name that matches the argument.
+Create a new file in the `models/` directory to add a new model.
+
+### Aliases
+
+Core Model
+
+- `pointnet_*.py`: PointNet model
+- `pointnet2_*.py`: PointNet++ model
+
+Task Type
+
+- `*_cls*.py`: Classification model
+- `*_sem_seg*.py`: Segmentation model
+- `*_part_seg*.py`: Part segmentation model
+
+Grouping Method
+
+- `*_msg.py`: Multi-scale grouping model
+- `*_ssg.py`: Single-scale grouping model
+
+### Model Directory Tree
+
+- `Pointnet_Pointnet2_pytorch/models/`
+  - `pointnet_cls.py`: PointNet classification model
+  - `pointnet_part_seg.py`: PointNet part segmentation model
+  - `pointnet_sem_seg.py`: PointNet semantic segmentation model
+  - `pointnet_utils.py`: PointNet util functions
+  - `pointnet2_cls_msg.py`: PointNet++ classification model with multi-scale grouping
+  - `pointnet2_cls_ssg.py`: PointNet++ classification model with single-scale grouping
+  - `pointnet2_part_seg_msg.py`: PointNet++ part segmentation model with multi-scale grouping
+  - `pointnet2_part_seg_ssg.py`: PointNet++ part segmentation model with single-scale grouping
+  - `pointnet2_sem_seg_msg.py`: PointNet++ semantic segmentation model with multi-scale grouping
+  - `pointnet2_sem_seg_ssg.py`: PointNet++ semantic segmentation model with single-scale grouping
+  - `pointnet2_utils.py`: PointNet++ util functions
+
 ## Classification (ModelNet10/40)
+
+See [jupyter notebook](`readme_classification.ipynb`).
 
 ### Data Preparation
 
@@ -122,6 +192,8 @@ python test_classification.py --log_dir pointnet2_cls_ssg --num_category 10
 
 ## Part Segmentation (ShapeNet)
 
+See [jupyter notebook](`readme_partseg.ipynb`).
+
 ### Data Preparation
 
 ~~Download alignment **ShapeNet**
@@ -153,6 +225,8 @@ python test_partseg.py --normal --log_dir pointnet2_part_seg_msg
 | PointNet2_MSG (Pytorch) | **85.4** | **82.5** |
 
 ## Semantic Segmentation (S3DIS)
+
+See [jupyter notebook](`readme_semseg.ipynb`).
 
 ### Data Preparation
 

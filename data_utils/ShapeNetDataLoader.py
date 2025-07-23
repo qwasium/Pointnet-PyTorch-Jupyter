@@ -11,6 +11,7 @@ warnings.filterwarnings("ignore")
 
 
 def pc_normalize(pc):
+    """Normalize 2D array of x-y-z"""
     centroid = np.mean(pc, axis=0)
     pc = pc - centroid
     m = np.max(np.sqrt(np.sum(pc**2, axis=1)))
@@ -19,6 +20,74 @@ def pc_normalize(pc):
 
 
 class PartNormalDataset(Dataset):
+    """Dataset class for ShapeNet data.
+
+    Attributes
+    ----------
+    npoints: int
+        Set to 2048
+    cache: dict[int, tuple[np.ndarray, int, int]]
+        Also see __getitem__(); it's not used wtf.
+        {index: (point_set, cls, seg),...}
+        {
+            index: (
+                numpy.ndarray, # x-y-z(-normal) * npoints
+                cls,           # <classes["Airplane"]>
+                seg,           # label
+            ),... # Up to length <cache_size>=20000
+        }
+    cache_size: int
+        Max length of <cache>; 200000.
+    cat: dict[str, str]
+        <catfile> -> dict
+        Only includes __init__() param <class_choice>.
+        {'Airplane': 02691156, ...}
+    catfile: pathlib.Path
+        <root>/synsetoffset2category.txt
+        data/shapenetcore_partanno_segmentation_benchmark_v0_normal/synsetoffset2category.txt
+    classes: dict[str, int]
+        {<cat.keys()>: <classes_original.values()>}
+        {'Airplane': 0, 'Bag': 1, ...}
+    classes_original: dict[str, int]
+        <cat> -> range()
+        {'Airplane': 0, 'Bag': 1, ...}
+    datapath: list[tuple[str, os.PathLike]]
+        [
+            ('Airplane', <root>/02691156/xxxxxx.txt),...
+            ('Bag', <root>/02773838/xxxxxx.txt),...
+            # all txt files
+        ]
+    meta: dict[str, list[os.PathLike]]
+        train_test_split/*.json -> dict
+        {
+            'Airplane': [
+                # list of txt files
+                <root>/02691156/xxxxxx.txt,...
+            ],...
+        }
+    normal_channel: bool
+        - True: x-y-z-nx-ny-nz-label
+        - False: x-y-z-label
+    root: os.PathLike
+        Root directory of dataset. data/shapenetcore_partanno_segmentation_benchmark_v0_normal.
+
+    Notes
+    -----
+    How category propagates:
+    catfile
+        -> cat    <- __init__(class_choice)
+            -> classes_original
+            ->   -> classes
+                    -> cache
+
+    How data path propagates:
+    root
+        -> catfile (synsetoffset2category.txt)
+        -> meta    (.txt data files)
+            -> datapath
+
+    """
+
     def __init__(
         self, root, npoints, split="train", class_choice=None, normal_channel=False
     ):
@@ -26,7 +95,7 @@ class PartNormalDataset(Dataset):
 
         Args:
             root : Root directory of dataset. data/shapenetcore_partanno_segmentation_benchmark_v0_normal.
-            npoints : Number of points.
+            npoints : Number of points. Default config is 2048.
             split : Which split file(<root>/traintest_split/*.json) to be used Defaults to 'train'.
                 Options are:
                 - train : training set
@@ -47,7 +116,7 @@ class PartNormalDataset(Dataset):
         with open(self.catfile, "r") as f:
             for line in f:
                 ls = line.strip().split()  # ['Airplane', '02691156']
-                self.cat[ls[0]] = ls[1]  # {'Airplane': 02691156, ...}
+                self.cat[ls[0]] = ls[1]  # {'Airplane': '02691156', ...}
         self.cat = {
             k: v for k, v in self.cat.items()
         }  # maybe because self.cat is not guaranteed to be a dict??
@@ -99,9 +168,8 @@ class PartNormalDataset(Dataset):
                 token = os.path.splitext(os.path.basename(fn))[0]
                 self.meta[item].append(os.path.join(dir_point, token + ".txt"))
 
-        self.datapath = (
-            []
-        )  # [('Airplane', <root>/02691156/xxxxxx.txt), ('Bag', <root>/02773838/xxxxxx.txt), ...]
+        self.datapath = []
+        # [('Airplane', <root>/02691156/xxxxxx.txt), ('Bag', <root>/02773838/xxxxxx.txt), ...]
         for item in self.cat:  # item = 'Airplane', 'Bag', ...
             for fn in self.meta[item]:  # fn = <root>/02691156/xxxxxx.txt
                 self.datapath.append((item, fn))
@@ -131,15 +199,18 @@ class PartNormalDataset(Dataset):
         #     'Knife'     : [22, 23]
         # }
 
-        self.cache = {}  # from index to (point_set, cls, seg) tuple
+        self.cache = {}  # {int[index]: tuple[point_set, cls, seg],...}
         self.cache_size = 20000
 
     def __getitem__(self, index):
+        """Read file, random sample npoints and return."""
         if index in self.cache:
             point_set, cls, seg = self.cache[index]
         else:
             fn = self.datapath[index]  # ('Airplane', <root>/02691156/xxxxxx.txt)
             cat = self.datapath[index][0]  # 'Airplane'
+            # self.data[:, :, index] comes from the same file;
+            # cls (category) should be the same value for a given index
             cls = self.classes[cat]  # 0
             cls = np.array([cls]).astype(np.int32)
             data = np.loadtxt(fn[1]).astype(np.float32)  # <root>/02691156/xxxxxx.txt
@@ -159,7 +230,11 @@ class PartNormalDataset(Dataset):
         point_set = point_set[choice, :]
         seg = seg[choice]
 
-        return point_set, cls, seg
+        return point_set, cls, seg  # -> torch[B*N*C], torch[B*1], torch[B*N]
+        # point_set: np[npoints*3|6] = points
+        # cls: np[1] = category index self.classes["Airplane"]
+        # seg:  np[npoints] = label
 
     def __len__(self):
+        """# of txt files."""
         return len(self.datapath)
