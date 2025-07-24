@@ -49,7 +49,7 @@ class AddImportPath:
 
     Usage
     -----
-    with AddImportPath(<module directory>):
+    with AddImportPath([<module directory>,...]):
         # import stuff
     """
 
@@ -401,7 +401,7 @@ if __name__ == "__main__":
         point_ary = txt_path_to_batch_tensor(
             txt_list, npoints=args["num_point"], normals=args["normal"], label=True
         )
-        # prediction B*N
+        # prediction N*B
         prediction = pointnet_seg.main(data=point_ary)
 
         pred_data = point_ary.copy()
