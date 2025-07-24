@@ -53,20 +53,23 @@ class AddImportPath:
         # import stuff
     """
 
-    def __init__(self, mod_dir: os.PathLike):
-        mod_dir = Path(mod_dir).resolve()
-        assert mod_dir.exists(), f"Doesn't exist: {mod_dir}"
-        self.mod_dir = str(mod_dir)
+    def __init__(self, mod_dir: list[os.PathLike]):
+        mod_dir = [Path(fold).resolve() for fold in mod_dir]
+        for fold in mod_dir:
+            assert fold.exists(), f"Doesn't exist: {fold}"
+        self.mod_dir = [str(fold) for fold in mod_dir]
 
     def __enter__(self):
-        sys.path.insert(0, self.mod_dir)
+        for fold in self.mod_dir:
+            sys.path.insert(0, fold)
 
     def __exit__(self, exc_type, exc_value, traceback):
-        try:
-            sys.path.remove(self.mod_dir)
-        except:
-            warnings.warn(f"Failed to remove from sys.path: {self.mod_dir}")
-            pass
+        for fold in self.mod_dir:
+            try:
+                sys.path.remove(fold)
+            except:
+                warnings.warn(f"Failed to remove from sys.path: {fold}")
+                pass
 
 
 class PointnetInference:
@@ -168,7 +171,7 @@ class PointnetInference:
         )  # 50
 
         # model
-        with AddImportPath(HERE / "models"):
+        with AddImportPath([HERE, HERE / "models"]):
             try:
                 model = importlib.import_module(self.config["model_name"])
             except ImportError as err:
