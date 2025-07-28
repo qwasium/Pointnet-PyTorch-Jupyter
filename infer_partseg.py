@@ -35,9 +35,10 @@ def txt_path_to_batch_tensor(
     for b, txt_path in enumerate(path_list):
         assert Path(txt_path).exists(), f"Data doesn't exist: {txt_path}"
         point_ary = np.loadtxt(txt_path).astype(np.float32)
-        point_ary = point_ary[
-            np.random.choice(point_ary.shape[1], npoints, replace=True), :
-        ]
+        if point_ary.shape[0] != npoints:
+            point_ary = point_ary[
+                np.random.choice(point_ary.shape[0], npoints, replace=True), :
+            ]
         if not normals:
             point_ary = point_ary[:, [0, 1, 2, 6]]  # x, y, z, label
         batch_tensor[:, :, b] = point_ary
