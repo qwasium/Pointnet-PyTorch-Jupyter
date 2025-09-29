@@ -73,84 +73,33 @@ class AddImportPath:
                 pass
 
 
-class PointnetInference:
-    def __init__(
-        self, config: dict, seg_classes: dict[str, list[int]], log_events: bool = False
-    ):
-        """
+class LabelToCategory:
+    """
+    seg_classes: dict[str, list[int]],
+        Shapenet style segmentation classes:
+        Key order matters.
+            {
+                "Earphone"  : [16, 17, 18],
+                "Motorbike" : [30, 31, 32, 33, 34, 35],
+                "Rocket"    : [41, 42, 43],
+                "Car"       : [8, 9, 10, 11],
+                "Laptop"    : [28, 29],
+                "Cap"       : [6, 7],
+                "Skateboard": [44, 45, 46],
+                "Mug"       : [36, 37],
+                "Guitar"    : [19, 20, 21],
+                "Bag"       : [4, 5],
+                "Lamp"      : [24, 25, 26, 27],
+                "Table"     : [47, 48, 49],
+                "Airplane"  : [0, 1, 2, 3],
+                "Pistol"    : [38, 39, 40],
+                "Chair"     : [12, 13, 14, 15],
+                "Knife"     : [22, 23],
+            }
+    """
 
-        Parameters
-        ----------
-        config: dict
-            Configuration dictionary.
-            Keys & values:
-            - model_name: str
-                Import model with this name.
-                Example: "pointnet2_part_seg_msg"
-            - "gpu": int
-                GPU id to set for $CUDA_VISIBLE_DEVICES.
-            - "num_point": int
-                Input size in point numbers. Use 2048.
-            - "normal": bool
-                True: Data is x-y-z-nx-ny-nz(-label)
-                False: Data is x-y-z(-label)
-            - "num_votes": int
-                Number of votes to use for segmentation.
-            - "data_dir": os.PathLike
-                Path to data directory.
-            - "log_dir": os.PathLike
-                Name of log directory.
-                Example: log/part_seg/<experiment name>/
-            - "pt_path": os.PathLike()
-                Path to model weights.
-                Example: <log_dir>/checkpoints/best_model.pth
-        seg_classes: dict[str, list[int]],
-            Shapenet style segmentation classes:
-            Key order matters.
-                {
-                    "Earphone"  : [16, 17, 18],
-                    "Motorbike" : [30, 31, 32, 33, 34, 35],
-                    "Rocket"    : [41, 42, 43],
-                    "Car"       : [8, 9, 10, 11],
-                    "Laptop"    : [28, 29],
-                    "Cap"       : [6, 7],
-                    "Skateboard": [44, 45, 46],
-                    "Mug"       : [36, 37],
-                    "Guitar"    : [19, 20, 21],
-                    "Bag"       : [4, 5],
-                    "Lamp"      : [24, 25, 26, 27],
-                    "Table"     : [47, 48, 49],
-                    "Airplane"  : [0, 1, 2, 3],
-                    "Pistol"    : [38, 39, 40],
-                    "Chair"     : [12, 13, 14, 15],
-                    "Knife"     : [22, 23],
-                }
-        log_events: bool
-            - True: enble logging
-            - False: disable logging
-
-        """
-        self.config = config
+    def __init__(self, seg_classes: dict[str, list[int]]):
         self.seg_classes = seg_classes
-        self.log_events = log_events
-
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(config["gpu"])
-
-        # logging
-        self.logger = logging.getLogger("Model")
-        if self.log_events:
-            self.logger.setLevel(logging.INFO)
-            formatter = logging.Formatter(
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-            )
-            file_handler = logging.FileHandler(config["log_dir"] / "eval.txt")
-            file_handler.setLevel(logging.INFO)
-            file_handler.setFormatter(formatter)
-            self.logger.addHandler(file_handler)
-        self.log_string("PARAMETER ...", self.log_events)
-        for key, val in self.config.items():
-            self.log_string(f"    {key}: {val}")
-
         label_to_cat: dict[int, str] = {}  # {<label>: <category>,...}
         for cat, labels in self.seg_classes.items():
             for label in labels:
@@ -171,6 +120,94 @@ class PointnetInference:
             ]
         )  # 50
 
+    def label_to_onehot(self, label_col: np.ndarray):
+        """1-hot encodes an array
+
+        Parameters
+        ----------
+        label_col: numpy.ndarray
+            np[N*1*B] or np[N*C*B]
+            [:, -1, :] must be label.
+
+        Return
+        ------
+        numpy.ndarray
+            np[B*self.n_classes]
+            Also see above to_categorical()
+
+        """
+        category = np.array(
+            # category as index Airplane -> 0, Bag -> 1,...
+            # The model does not use label as input, just the class
+            # Assumes same category (and different labels) for each batch
+            [[int(self.label_to_cat_idx[label]) for label in label_col[0, -1, :]]]
+        )  # 1*B
+
+        # 16*16 -> 1*B*16 -> B*16
+        return np.eye(self.n_classes)[category].squeeze(axis=0).astype(np.int32)
+
+
+class PointnetInference:
+    def __init__(self, config: dict, log_events: bool = False):
+        """
+
+        Parameters
+        ----------
+        config: dict
+            Configuration dictionary.
+            Keys & values:
+            - "batch_size": int
+                Batch size.
+            - "model_name": str
+                Import model with this name.
+                Example: "pointnet2_part_seg_msg"
+            - "gpu": int
+                GPU id to set for $CUDA_VISIBLE_DEVICES.
+            - "num_point": int
+                Input size in point numbers. Use 2048.
+            - "normal": bool
+                True: Data is x-y-z-nx-ny-nz(-label)
+                False: Data is x-y-z(-label)
+            - "num_votes": int
+                Number of votes to use for segmentation.
+            - "data_dir": os.PathLike
+                Path to data directory.
+            - "log_dir": os.PathLike
+                Name of log directory.
+                Example: log/part_seg/<experiment name>/
+            - "pt_path": os.PathLike()
+                Path to model weights.
+                Example: <log_dir>/checkpoints/best_model.pth
+            - "num_parts": int
+                Default 16
+                Number of categories: len("Airplane", "Bag",...)
+            - "num_classes": int
+                Default 50. Number classes.
+        log_events: bool
+            - True: enble logging
+            - False: disable logging
+
+        """
+        self.config = config
+        self.log_events = log_events
+
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(config["gpu"])
+
+        # logging
+        self.logger = logging.getLogger("Model")
+        if self.log_events:
+            self.logger.setLevel(logging.INFO)
+            formatter = logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            )
+            file_handler = logging.FileHandler(config["log_dir"] / "eval.txt")
+            file_handler.setLevel(logging.INFO)
+            file_handler.setFormatter(formatter)
+            self.logger.addHandler(file_handler)
+        self.log_string("PARAMETER ...", self.log_events)
+        for key, val in self.config.items():
+            self.log_string(f"    {key}: {val}")
+
         # model
         with AddImportPath([HERE, HERE / "models"]):
             try:
@@ -183,7 +220,7 @@ class PointnetInference:
                 raise err
 
         self.classifier = model.get_model(
-            self.n_parts, normal_channel=self.config["normal"]
+            self.config["num_classes"], normal_channel=self.config["normal"]
         ).cuda()
         checkpoint = torch.load(self.config["pt_path"], weights_only=False)
         self.classifier.load_state_dict(checkpoint["model_state_dict"])
@@ -194,48 +231,36 @@ class PointnetInference:
         if log_events:
             self.logger.info(log_str)
 
-    @staticmethod
-    def to_categorical(y, num_classes):
-        """1-hot encodes a tensor
-
-        Parameters
-        ----------
-        y: array of int
-            Values correspond to category; range of each value is 0:num_classes-1
-            Length: batch size
-        num_classes: int
-            Number of segmentation categories.
-
-        Return
-        ------
-        new_y: torch.Tensor
-            One-hot encoded 2D-tensor.
-            Shape: len(y) * num_classes
-        """
-        new_y = torch.eye(num_classes)[y.cpu().data.numpy(),]
-        if y.is_cuda:
-            return new_y.cuda()
-        return new_y
-
-    def main(self, data: np.ndarray):
+    def main(self, data: np.ndarray, category: np.ndarray):
         """main function
 
         Parameters
         ----------
         data: np.ndarray
             Data in np[N*C*B]
+            C = X, Y, Z(, NX, NY, NZ)
+        category: list | np.ndarray
+            Category in np[B*16]; num_classes = 16
+            One-hot encoded category of each batch as index; Airplane -> 0, Bag -> 1,...
         """
-        if self.config["normal"] and data.shape[1] != 7:
+        # if self.config["normal"] and data.shape[1] != 7:
+        if self.config["normal"] and data.shape[1] != 6:
             self.log_string(
-                "provided data doesn't have 7 columns, aborting.", self.log_events
+                "provided data doesn't have 6 columns, aborting.", self.log_events
             )
-            raise ValueError("data should have columns x-y-z-nx-ny-nz-label")
-        elif not self.config["normal"] and data.shape[1] != 4:
+            raise ValueError("data should have columns x-y-z-nx-ny-nz")
+        # elif not self.config["normal"] and data.shape[1] != 4:
+        elif not self.config["normal"] and data.shape[1] != 3:
             self.log_string(
-                "provided data doesn't have 4 columns, aborting.", self.log_events
+                "provided data doesn't have 3 columns, aborting.", self.log_events
             )
-            raise ValueError("data should have columns x-y-z-label")
-        assert data.shape[0] == self.config["num_point"], "Number of points is wrong."
+            raise ValueError("data should have columns x-y-z")
+        assert (
+            data.shape[0] == self.config["num_point"]
+        ), "data has wrong number of points."
+        assert (
+            category.shape[0] == data.shape[2]
+        ), "Batch size mismatch between data and category."
 
         # normalize x-y-z to point cloud centroid
         xyz = data[:, :3, :]  # N*3*B
@@ -250,26 +275,20 @@ class PointnetInference:
             classifier = self.classifier.eval()
 
             points = torch.from_numpy(
-                data[:, :-1, :].astype(np.float32).transpose()
+                # data[:, :-1, :].astype(np.float32).transpose()
+                data.astype(np.float32).transpose()
             ).cuda()  # N*C*B -> B*C*N
-            label = (
-                torch.Tensor(
-                    [[int(self.label_to_cat_idx[label]) for label in data[0, -1, :]]]
-                )
-                .transpose(1, 0)
-                .cuda()
-            )  # 1*B -> B*1
-            target = torch.from_numpy(
-                np.squeeze(data[:, -1, :].astype(np.int32).transpose())
-            ).cuda()  # N*C*N -> B*N
 
             vote_pool = torch.zeros(
-                target.size()[0], target.size()[1], self.n_parts
+                data.shape[2],  # B
+                data.shape[0],  # N
+                self.config["num_classes"],  # 50
             ).cuda()
             for _ in range(self.config["num_votes"]):
                 # inference model ran here
                 seg_pred, _ = classifier(
-                    points, PointnetInference.to_categorical(label, self.n_classes)
+                    points,
+                    torch.from_numpy(category).cuda(),
                 )
                 vote_pool += seg_pred
             seg_pred = vote_pool / self.config["num_votes"]
@@ -378,9 +397,10 @@ if __name__ == "__main__":
         test_ids = tuple(set([str(d) for d in json.load(f)]))
 
     # instantiate class
-    pointnet_seg = PointnetInference(
-        config=args, seg_classes=segmentation_classes, log_events=True
-    )
+    label_to_cat = LabelToCategory(seg_classes=segmentation_classes)
+    args["num_parts"] = label_to_cat.n_parts  # 16
+    args["num_classes"] = label_to_cat.n_classes  # 50
+    pointnet_seg = PointnetInference(config=args, log_events=True)
     pointnet_seg.log_string(
         "The number of data is: %d" % len(test_ids), pointnet_seg.log_events
     )
@@ -401,9 +421,11 @@ if __name__ == "__main__":
         )
         point_ary = txt_path_to_batch_tensor(
             txt_list, npoints=args["num_point"], normals=args["normal"], label=True
-        )
-        # prediction N*B
-        prediction = pointnet_seg.main(data=point_ary)
+        )  # 2048 * 7 * B
+        category = label_to_cat.label_to_onehot(point_ary)  # B*16
+        prediction = pointnet_seg.main(
+            data=point_ary[:, :-1, :], category=category
+        )  # return N*B
 
         pred_data = point_ary.copy()
         pred_data[:, -1, :] = prediction
