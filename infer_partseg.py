@@ -178,10 +178,10 @@ class PointnetInference:
             - "pt_path": os.PathLike()
                 Path to model weights.
                 Example: <log_dir>/checkpoints/best_model.pth
-            - "num_parts": int
+            - "num_classes": int
                 Default 16
                 Number of categories: len("Airplane", "Bag",...)
-            - "num_classes": int
+            - "num_parts": int
                 Default 50. Number classes.
         log_events: bool
             - True: enble logging
@@ -220,7 +220,7 @@ class PointnetInference:
                 raise err
 
         self.classifier = model.get_model(
-            self.config["num_classes"], normal_channel=self.config["normal"]
+            self.config["num_parts"], normal_channel=self.config["normal"]
         ).cuda()
         checkpoint = torch.load(self.config["pt_path"], weights_only=False)
         self.classifier.load_state_dict(checkpoint["model_state_dict"])
@@ -282,7 +282,7 @@ class PointnetInference:
             vote_pool = torch.zeros(
                 data.shape[2],  # B
                 data.shape[0],  # N
-                self.config["num_classes"],  # 50
+                self.config["num_parts"],  # 50
             ).cuda()
             for _ in range(self.config["num_votes"]):
                 # inference model ran here
@@ -398,8 +398,8 @@ if __name__ == "__main__":
 
     # instantiate class
     label_to_cat = LabelToCategory(seg_classes=segmentation_classes)
-    args["num_parts"] = label_to_cat.n_parts  # 16
-    args["num_classes"] = label_to_cat.n_classes  # 50
+    args["num_classes"] = label_to_cat.n_classes  # 16
+    args["num_parts"] = label_to_cat.n_parts  # 50
     pointnet_seg = PointnetInference(config=args, log_events=True)
     pointnet_seg.log_string(
         "The number of data is: %d" % len(test_ids), pointnet_seg.log_events
