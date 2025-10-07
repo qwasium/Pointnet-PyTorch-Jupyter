@@ -1,6 +1,6 @@
 """
-Author: Benny
-Date: Nov 2019
+Author: qwa (based on Benny,2019)
+Date: Sep. 2025
 """
 
 import argparse
@@ -23,8 +23,8 @@ from tqdm import tqdm_notebook
 import provider
 from data_utils.ShapeNetDataLoader import PartNormalDataset
 
-
 ROOT_DIR = Path(__file__).parent
+
 
 class AddImportPath:
     """Temporarily add path to sys.path
@@ -52,6 +52,7 @@ class AddImportPath:
             except Exception:
                 warnings.warn(f"Failed to remove from sys.path: {fold}")
 
+
 class TrainPartSegDDP:
     """Distributed training and evaluation for ShapeNet part segmentation.
 
@@ -64,6 +65,8 @@ class TrainPartSegDDP:
         Model module name under `models` providing `get_model` and `get_loss`.
     batch_size: int
     epoch: int
+        Number of epochs to do.
+        If starting from a previous training run, the number of additional epochs.
     learning_rate: float
     world_size: int
         Number of processes (ranks).
@@ -167,10 +170,10 @@ class TrainPartSegDDP:
         # checkpoint metadata (actual weights loaded per-rank in _run_process)
         self.start_epoch = 0
         self.pretrained_path = None
+        self.restored_learning_rate = None
         best_model = self.checkpoints_dir / "best_model.pth"
         if best_model.exists():
             self.pretrained_path = str(best_model)
-
 
     @staticmethod
     def inplace_relu(m):
@@ -222,7 +225,6 @@ class TrainPartSegDDP:
         if isinstance(m, torch.nn.BatchNorm2d) or isinstance(m, torch.nn.BatchNorm1d):
             m.momentum = momentum
 
-
     def _run_process(self, rank):
         """Entry point for a single process in DDP training."""
 
@@ -242,17 +244,30 @@ class TrainPartSegDDP:
         best_class_avg_iou = 0.0
         best_instance_avg_iou = 0.0
 
-        for epoch in range(start_epoch, self.conf["epoch"]):
+        end_epoch = start_epoch + self.conf["epoch"]
+        for epoch in range(start_epoch, end_epoch):
             train_sampler.set_epoch(epoch)
 
             if rank == 0:
-                self.log_string("Epoch %d/%d" % (epoch + 1, self.conf["epoch"]))
+                self.log_string("Epoch %d/%d" % (epoch + 1, end_epoch))
 
-            self._adjust_schedules(epoch, optimizer, ddp_model, learning_rate_clip, bn_momentum_original, bn_momentum_decay, bn_momentum_decay_step)
+            self._adjust_schedules(
+                epoch,
+                optimizer,
+                ddp_model,
+                learning_rate_clip,
+                bn_momentum_original,
+                bn_momentum_decay,
+                bn_momentum_decay_step,
+            )
 
-            train_instance_acc = self._train_one_epoch(rank, device, ddp_model, optimizer, train_dataloader)
+            train_instance_acc = self._train_one_epoch(
+                rank, device, ddp_model, optimizer, train_dataloader
+            )
 
-            test_metrics = self._validate_one_epoch(rank, device, ddp_model, test_dataloader)
+            test_metrics = self._validate_one_epoch(
+                rank, device, ddp_model, test_dataloader
+            )
 
             if rank == 0 and test_metrics is not None:
                 self.log_string(
@@ -264,8 +279,17 @@ class TrainPartSegDDP:
                         test_metrics["instance_avg_iou"],
                     )
                 )
-                best_acc, best_class_avg_iou, best_instance_avg_iou = self._save_if_best(
-                    epoch, ddp_model, optimizer, train_instance_acc, test_metrics, best_acc, best_class_avg_iou, best_instance_avg_iou
+                best_acc, best_class_avg_iou, best_instance_avg_iou = (
+                    self._save_if_best(
+                        epoch,
+                        ddp_model,
+                        optimizer,
+                        train_instance_acc,
+                        test_metrics,
+                        best_acc,
+                        best_class_avg_iou,
+                        best_instance_avg_iou,
+                    )
                 )
 
         dist.barrier()
@@ -286,12 +310,16 @@ class TrainPartSegDDP:
         master_port = str(self.conf.get("master_port", "29500"))
         os.environ["MASTER_ADDR"] = master_addr
         os.environ["MASTER_PORT"] = master_port
-        dist.init_process_group(backend=backend, rank=rank, world_size=self.conf["world_size"])
+        dist.init_process_group(
+            backend=backend, rank=rank, world_size=self.conf["world_size"]
+        )
         return device
 
     def _build_model(self, device):
         """Construct the model and loss function on the given device."""
-        model = self.model_module.get_model(self.n_parts, normal_channel=self.conf["normal"]).to(device)
+        model = self.model_module.get_model(
+            self.n_parts, normal_channel=self.conf["normal"]
+        ).to(device)
         criterion = self.model_module.get_loss()
         model.apply(TrainPartSegDDP.inplace_relu)
         return model, criterion
@@ -301,11 +329,31 @@ class TrainPartSegDDP:
         start_epoch = 0
         if self.pretrained_path is not None and Path(self.pretrained_path).exists():
             try:
-                checkpoint = torch.load(self.pretrained_path, map_location=device, weights_only=False)
+                checkpoint = torch.load(
+                    self.pretrained_path, map_location=device, weights_only=False
+                )
                 model.load_state_dict(checkpoint["model_state_dict"], strict=False)
                 start_epoch = int(checkpoint.get("epoch", 0))
+
+                # Restore learning rate with fallback logic
+                if "learning_rate" in checkpoint:
+                    self.restored_learning_rate = float(checkpoint["learning_rate"])
+                    if rank == 0:
+                        self.log_string(
+                            f"Restored learning rate from checkpoint: {self.restored_learning_rate:.6f}",
+                            rank=rank,
+                        )
+                else:
+                    if rank == 0:
+                        self.log_string(
+                            "No learning rate found in checkpoint, will use config value",
+                            rank=rank,
+                        )
+
                 if rank == 0:
-                    self.log_string("Use pretrain model from %s" % self.pretrained_path, rank=rank)
+                    self.log_string(
+                        "Use pretrain model from %s" % self.pretrained_path, rank=rank
+                    )
             except Exception as err:
                 if rank == 0:
                     self.log_string(f"Failed to load checkpoint: {err}", rank=rank)
@@ -313,24 +361,43 @@ class TrainPartSegDDP:
 
     def _build_optimizer(self, model):
         """Create the optimizer from config for the provided model."""
+        # Determine learning rate with fallback logic:
+        # 1. Use restored learning rate from checkpoint if available
+        # 2. Fall back to config learning rate if provided
+        # 3. Fall back to default learning rate (0.001) if neither available
+        if self.restored_learning_rate is not None:
+            lr = self.restored_learning_rate
+        elif "learning_rate" in self.conf:
+            lr = self.conf["learning_rate"]
+        else:
+            lr = 0.001  # Default learning rate
+
         if self.conf["optimizer"].lower() == "adam":
             optimizer = torch.optim.Adam(
                 model.parameters(),
-                lr=self.conf["learning_rate"],
+                lr=lr,
                 betas=(0.9, 0.999),
                 eps=1e-08,
                 weight_decay=self.conf["decay_rate"],
             )
         else:
-            optimizer = torch.optim.SGD(
-                model.parameters(), lr=self.conf["learning_rate"], momentum=0.9
-            )
+            optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9)
         return optimizer
 
     def _build_dataloaders(self, rank):
         """Create distributed samplers and data loaders for train and test."""
-        train_sampler = DistributedSampler(self.train_dataset, num_replicas=self.conf["world_size"], rank=rank, shuffle=True)
-        test_sampler = DistributedSampler(self.test_dataset, num_replicas=self.conf["world_size"], rank=rank, shuffle=False)
+        train_sampler = DistributedSampler(
+            self.train_dataset,
+            num_replicas=self.conf["world_size"],
+            rank=rank,
+            shuffle=True,
+        )
+        test_sampler = DistributedSampler(
+            self.test_dataset,
+            num_replicas=self.conf["world_size"],
+            rank=rank,
+            shuffle=False,
+        )
         train_dataloader = torch.utils.data.DataLoader(
             self.train_dataset,
             batch_size=self.conf["batch_size"],
@@ -348,19 +415,38 @@ class TrainPartSegDDP:
         )
         return train_dataloader, test_dataloader, train_sampler
 
-    def _adjust_schedules(self, epoch, optimizer, ddp_model, learning_rate_clip, bn_momentum_original, bn_momentum_decay, bn_momentum_decay_step):
+    def _adjust_schedules(
+        self,
+        epoch,
+        optimizer,
+        ddp_model,
+        learning_rate_clip,
+        bn_momentum_original,
+        bn_momentum_decay,
+        bn_momentum_decay_step,
+    ):
         """Adjust learning rate and BatchNorm momentum for the current epoch."""
+        # Use restored learning rate as base if available, otherwise use config learning rate
+        base_lr = (
+            self.restored_learning_rate
+            if self.restored_learning_rate is not None
+            else self.conf["learning_rate"]
+        )
         lr = max(
-            self.conf["learning_rate"] * (self.conf["lr_decay"] ** (epoch // self.conf["step_size"])),
+            base_lr * (self.conf["lr_decay"] ** (epoch // self.conf["step_size"])),
             learning_rate_clip,
         )
         for param_group in optimizer.param_groups:
             param_group["lr"] = lr
-        momentum = bn_momentum_original * (bn_momentum_decay ** (epoch // bn_momentum_decay_step))
+        momentum = bn_momentum_original * (
+            bn_momentum_decay ** (epoch // bn_momentum_decay_step)
+        )
         if momentum < 0.01:
             momentum = 0.01
+
         def _set_bn_momentum(m):
             return TrainPartSegDDP.bn_momentum_adjust(m, momentum)
+
         ddp_model.module.apply(_set_bn_momentum)
         ddp_model.train()
 
@@ -368,32 +454,46 @@ class TrainPartSegDDP:
         """Run one training epoch and return globally averaged train accuracy."""
         mean_correct = []
         if self.conf.get("notebook", False) and rank == 0:
-            train_iter = tqdm_notebook(enumerate(train_dataloader), total=len(train_dataloader), smoothing=0.9)
+            train_iter = tqdm_notebook(
+                enumerate(train_dataloader), total=len(train_dataloader), smoothing=0.9
+            )
         else:
             train_iter = enumerate(train_dataloader)
         for _, (points, label, target) in train_iter:
             optimizer.zero_grad(set_to_none=True)
             points_np = points.numpy()
-            points_np[:, :, 0:3] = provider.random_scale_point_cloud(points_np[:, :, 0:3])
+            points_np[:, :, 0:3] = provider.random_scale_point_cloud(
+                points_np[:, :, 0:3]
+            )
             points_np[:, :, 0:3] = provider.shift_point_cloud(points_np[:, :, 0:3])
             points = torch.from_numpy(points_np)
             points = points.float().to(device)
             label = label.long().to(device)
             target = target.long().to(device)
             points = points.transpose(2, 1)
-            seg_pred, trans_feat = ddp_model(points, TrainPartSegDDP.to_categorical(label, self.n_classes))
+            seg_pred, trans_feat = ddp_model(
+                points, TrainPartSegDDP.to_categorical(label, self.n_classes)
+            )
             seg_pred = seg_pred.contiguous().view(-1, self.n_parts)
             target_flat = target.view(-1, 1)[:, 0]
             pred_choice = seg_pred.data.max(1)[1]
             correct = pred_choice.eq(target_flat.data).cpu().sum()
-            mean_correct.append(correct.item() / (self.conf["batch_size"] * self.conf["npoint"]))
+            mean_correct.append(
+                correct.item() / (self.conf["batch_size"] * self.conf["npoint"])
+            )
             loss = self.model_module.get_loss()(seg_pred, target_flat, trans_feat)
             loss.backward()
             optimizer.step()
-        train_instance_acc = float(np.mean(mean_correct)) if len(mean_correct) > 0 else 0.0
+        train_instance_acc = (
+            float(np.mean(mean_correct)) if len(mean_correct) > 0 else 0.0
+        )
         train_acc_tensor = torch.tensor(train_instance_acc, device=device)
         dist.all_reduce(train_acc_tensor, op=dist.ReduceOp.SUM)
-        train_instance_acc = (train_acc_tensor.item() / self.conf["world_size"]) if self.conf["world_size"] > 0 else train_instance_acc
+        train_instance_acc = (
+            (train_acc_tensor.item() / self.conf["world_size"])
+            if self.conf["world_size"] > 0
+            else train_instance_acc
+        )
         if rank == 0:
             self.log_string("Train accuracy is: %.5f" % train_instance_acc)
         return train_instance_acc
@@ -418,7 +518,11 @@ class TrainPartSegDDP:
                 for lab in self.seg_classes[cat]:
                     seg_label_to_cat[lab] = cat
             if self.conf.get("notebook", False) and rank == 0:
-                test_iter = tqdm_notebook(enumerate(test_dataloader), total=len(test_dataloader), smoothing=0.9)
+                test_iter = tqdm_notebook(
+                    enumerate(test_dataloader),
+                    total=len(test_dataloader),
+                    smoothing=0.9,
+                )
             else:
                 test_iter = enumerate(test_dataloader)
             for _, (points, label, target) in test_iter:
@@ -427,7 +531,9 @@ class TrainPartSegDDP:
                 label = label.long().to(device)
                 target = target.long().to(device)
                 points = points.transpose(2, 1)
-                seg_pred, _ = ddp_model(points, TrainPartSegDDP.to_categorical(label, self.n_classes))
+                seg_pred, _ = ddp_model(
+                    points, TrainPartSegDDP.to_categorical(label, self.n_classes)
+                )
                 cur_pred_val_logits = seg_pred.detach().cpu().numpy()
                 cur_pred_val = np.zeros((cur_batch_size, NUM_POINT)).astype(np.int32)
                 target_np = target.detach().cpu().numpy()
@@ -435,14 +541,22 @@ class TrainPartSegDDP:
                     cat = seg_label_to_cat[target_np[bi, 0]]
                     logits = cur_pred_val_logits[bi, :, :]
                     cur_pred_val[bi, :] = (
-                        np.argmax(logits[:, self.seg_classes[cat]], 1) + self.seg_classes[cat][0]
+                        np.argmax(logits[:, self.seg_classes[cat]], 1)
+                        + self.seg_classes[cat][0]
                     )
                 correct = np.sum(cur_pred_val == target_np)
                 total_correct += torch.tensor(float(correct), device=device)
-                total_seen += torch.tensor(float(cur_batch_size * NUM_POINT), device=device)
+                total_seen += torch.tensor(
+                    float(cur_batch_size * NUM_POINT), device=device
+                )
                 for l in range(self.n_parts):
-                    total_seen_class[l] += torch.tensor(float(np.sum(target_np == l)), device=device)
-                    total_correct_class[l] += torch.tensor(float(np.sum((cur_pred_val == l) & (target_np == l))), device=device)
+                    total_seen_class[l] += torch.tensor(
+                        float(np.sum(target_np == l)), device=device
+                    )
+                    total_correct_class[l] += torch.tensor(
+                        float(np.sum((cur_pred_val == l) & (target_np == l))),
+                        device=device,
+                    )
                 for bi in range(cur_batch_size):
                     segp = cur_pred_val[bi, :]
                     segl = target_np[bi, :]
@@ -452,9 +566,9 @@ class TrainPartSegDDP:
                         if (np.sum(segl == l) == 0) and (np.sum(segp == l) == 0):
                             part_ious[l - self.seg_classes[cat][0]] = 1.0
                         else:
-                            part_ious[l - self.seg_classes[cat][0]] = np.sum((segl == l) & (segp == l)) / float(
-                                np.sum((segl == l) | (segp == l))
-                            )
+                            part_ious[l - self.seg_classes[cat][0]] = np.sum(
+                                (segl == l) & (segp == l)
+                            ) / float(np.sum((segl == l) | (segp == l)))
                     shape_iou = float(np.mean(part_ious))
                     cat_iou_sum[cat_to_idx[cat]] += shape_iou
                     cat_iou_cnt[cat_to_idx[cat]] += 1.0
@@ -470,36 +584,58 @@ class TrainPartSegDDP:
             dist.all_reduce(instance_cnt, op=dist.ReduceOp.SUM)
             if rank == 0:
                 test_metrics = {}
-                test_metrics["accuracy"] = (total_correct.item() / float(total_seen.item())) if total_seen.item() > 0 else 0.0
+                test_metrics["accuracy"] = (
+                    (total_correct.item() / float(total_seen.item()))
+                    if total_seen.item() > 0
+                    else 0.0
+                )
                 seen_class_np = total_seen_class.cpu().numpy()
                 correct_class_np = total_correct_class.cpu().numpy()
-                with np.errstate(divide='ignore', invalid='ignore'):
+                with np.errstate(divide="ignore", invalid="ignore"):
                     class_avg_acc = np.nan_to_num(correct_class_np / seen_class_np)
                 test_metrics["class_avg_accuracy"] = float(np.mean(class_avg_acc))
                 cat_iou_sum_np = cat_iou_sum.cpu().numpy()
                 cat_iou_cnt_np = cat_iou_cnt.cpu().numpy()
-                with np.errstate(divide='ignore', invalid='ignore'):
-                    per_cat_miou = np.nan_to_num(cat_iou_sum_np / np.maximum(cat_iou_cnt_np, 1e-12))
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    per_cat_miou = np.nan_to_num(
+                        cat_iou_sum_np / np.maximum(cat_iou_cnt_np, 1e-12)
+                    )
                 for idx, cat in enumerate(cats_sorted):
                     self.log_string(
-                        "eval mIoU of %s %f" % (cat + " " * (14 - len(cat)), per_cat_miou[idx]),
+                        "eval mIoU of %s %f"
+                        % (cat + " " * (14 - len(cat)), per_cat_miou[idx]),
                         rank=rank,
                     )
-                test_metrics["class_avg_iou"] = float(np.mean(per_cat_miou)) if len(per_cat_miou) > 0 else 0.0
+                test_metrics["class_avg_iou"] = (
+                    float(np.mean(per_cat_miou)) if len(per_cat_miou) > 0 else 0.0
+                )
                 test_metrics["instance_avg_iou"] = (
                     float(instance_iou_sum.item() / max(instance_cnt.item(), 1.0))
-                    if instance_cnt.item() > 0 else 0.0
+                    if instance_cnt.item() > 0
+                    else 0.0
                 )
             else:
                 test_metrics = None
             return test_metrics
 
-    def _save_if_best(self, epoch, ddp_model, optimizer, train_instance_acc, test_metrics, best_acc, best_class_avg_iou, best_instance_avg_iou):
+    def _save_if_best(
+        self,
+        epoch,
+        ddp_model,
+        optimizer,
+        train_instance_acc,
+        test_metrics,
+        best_acc,
+        best_class_avg_iou,
+        best_instance_avg_iou,
+    ):
         """Save checkpoint on rank 0 if metrics improve and return updated bests."""
         if test_metrics["instance_avg_iou"] >= best_instance_avg_iou:
             self.logger.info("Save model...")
             savepath = str(self.checkpoints_dir / "best_model.pth")
             self.log_string("Saving at %s" % savepath)
+            # Get current learning rate from optimizer
+            current_lr = optimizer.param_groups[0]["lr"]
             state = {
                 "epoch": epoch,
                 "train_acc": train_instance_acc,
@@ -508,6 +644,7 @@ class TrainPartSegDDP:
                 "instance_avg_iou": test_metrics["instance_avg_iou"],
                 "model_state_dict": ddp_model.module.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
+                "learning_rate": current_lr,
             }
             torch.save(state, savepath)
             self.log_string("Saving model....")
@@ -533,9 +670,11 @@ class TrainPartSegDDP:
             # Avoid pickling the class instance by spawning a static entry point
             TrainPartSegDDP._mp_entry,
             args=(self.conf, self.seg_classes),
-            nprocs=self.conf["world_size"], join=True
+            nprocs=self.conf["world_size"],
+            join=True,
         )
         return results
+
 
 if __name__ == "__main__":
 
