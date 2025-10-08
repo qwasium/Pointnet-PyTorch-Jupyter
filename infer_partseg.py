@@ -14,7 +14,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from tqdm import tqdm
+from tqdm import tqdm, tqdm_notebook
 
 HERE = Path(__file__).parent
 
@@ -99,18 +99,9 @@ class LabelToCategory:
     """
 
     def __init__(self, seg_classes: dict[str, list[int]]):
+        # {<category>: [<label>, <label>,...]}
+        # {Airplane: [0, 1, 2, 3],...,Table: [47, 48, 49]}
         self.seg_classes = seg_classes
-        label_to_cat: dict[int, str] = {}  # {<label>: <category>,...}
-        for cat, labels in self.seg_classes.items():
-            for label in labels:
-                label_to_cat[label] = cat
-        cat_to_idx: dict[str, int] = {
-            cat: idx for idx, cat in enumerate(self.seg_classes)
-        }
-        self.label_to_cat_idx: dict[int, int] = {
-            label: cat_to_idx[cat] for label, cat in label_to_cat.items()
-        }
-
         self.n_classes = len(self.seg_classes)  # 16
         self.n_parts = len(
             [
@@ -119,6 +110,25 @@ class LabelToCategory:
                 for seg_id in seg_val_sublist
             ]
         )  # 50
+
+        # {<category>: <category index>}
+        # {Airplane:0,...Table:15}
+        cat_to_idx: dict[str, int] = {
+            cat: idx for idx, cat in enumerate(self.seg_classes)
+        }
+
+        # {<label>: <category>,...}
+        # {0:Airplane, 1:Airplane, ...49:Table}
+        self.label_to_cat: dict[int, str] = {}
+        for cat, labels in self.seg_classes.items():
+            for label in labels:
+                self.label_to_cat[label] = cat
+
+        # {<label>: <category index>}
+        # {0:0, 1:0,...,49:15}
+        self.label_to_cat_idx: dict[int, int] = {
+            label: cat_to_idx[cat] for label, cat in self.label_to_cat.items()
+        }
 
     def label_to_onehot(self, label_col: np.ndarray):
         """1-hot encodes an array
@@ -231,7 +241,7 @@ class PointnetInference:
         if log_events:
             self.logger.info(log_str)
 
-    def main(self, data: np.ndarray, category: np.ndarray):
+    def infer(self, data: np.ndarray, category: np.ndarray):
         """main function
 
         Parameters
@@ -242,6 +252,13 @@ class PointnetInference:
         category: list | np.ndarray
             Category in np[B*16]; num_classes = 16
             One-hot encoded category of each batch as index; Airplane -> 0, Bag -> 1,...
+
+        Returns
+        -------
+        numpy.ndarray
+            Predicted labels, np[B*N]
+        pred_logits: numpy.ndarray
+            Predicted logits of each label, np[B*N*50]
         """
         # if self.config["normal"] and data.shape[1] != 7:
         if self.config["normal"] and data.shape[1] != 6:
@@ -291,11 +308,159 @@ class PointnetInference:
                     torch.from_numpy(category).cuda(),
                 )
                 vote_pool += seg_pred
-            seg_pred = vote_pool / self.config["num_votes"]
-            seg_pred = seg_pred.cpu().data.numpy()  # np[B * N * n_parts]
-            pred_labels = np.argmax(seg_pred, axis=2)  # np[B*N]
+            pred_logits = vote_pool / self.config["num_votes"]
+            pred_logits = pred_logits.cpu().data.numpy()  # np[B * N * n_parts]
 
-            return pred_labels.T  # np[N*B]
+            return np.argmax(pred_logits, axis=2), pred_logits  # np[B*N], np[B*N*50]
+
+
+def main(
+    conf: dict,
+    data_paths: list[os.PathLike],
+    segmentation_classes: dict[str, list[int]],
+    write_txt: bool = True,
+    notebook: bool = False,
+):
+    # instantiate class
+    label_to_cat = LabelToCategory(seg_classes=segmentation_classes)
+    conf["num_classes"] = label_to_cat.n_classes  # 16
+    conf["num_parts"] = label_to_cat.n_parts  # 50
+    pointnet_seg = PointnetInference(config=conf, log_events=True)
+    pointnet_seg.log_string(
+        "The number of data is: %d" % len(data_paths), pointnet_seg.log_events
+    )
+
+    # Initialize metrics tracking variables
+    test_metrics = {}
+    total_correct = 0
+    total_seen = 0
+    total_seen_class = [0 for _ in range(conf["num_parts"])]
+    total_correct_class = [0 for _ in range(conf["num_parts"])]
+    shape_ious = {cat: [] for cat in segmentation_classes}
+
+    # loop through txt files
+    if notebook:
+        main_loop = tqdm_notebook(range(0, len(data_paths), conf["batch_size"]))
+    else:
+        main_loop = tqdm(range(0, len(data_paths), conf["batch_size"]))
+    for i in main_loop:
+        cur_bat_end = min(i + conf["batch_size"], len(data_paths))
+        txt_list = data_paths[i:cur_bat_end]
+
+        # Run model
+        pointnet_seg.log_string(
+            f"Running model: {i} -> {cur_bat_end - 1}",
+            pointnet_seg.log_events,
+            False,
+        )
+        point_ary = txt_path_to_batch_tensor(
+            txt_list, npoints=conf["num_point"], normals=conf["normal"], label=True
+        )  # 2048 * 7 * B
+        category = label_to_cat.label_to_onehot(point_ary)  # B*16
+        prediction, pred_logits = pointnet_seg.infer(
+            data=point_ary[:, :-1, :], category=category
+        )  # return N*B, B*N*50
+
+        _, _, cur_batch_size = point_ary.shape  # N*C*B
+        target = point_ary[:, -1, :].transpose().astype(np.int32)  # N*B -> B*N
+
+        # prediction is the label with the highest likiligood regardless of its original category
+        # cur_pred_val filters labels only to the ones within its original category
+        cur_pred_val = np.zeros((cur_batch_size, conf["num_point"])).astype(np.int32)
+        for b in range(cur_batch_size):
+            cat = label_to_cat.label_to_cat[target[b, 0]]  # same category between N
+            logits = pred_logits[b, :, :]  # B*N*50 -> N*50
+            cur_pred_val[b, :] = (
+                # For example "Rocket": [41, 42, 43]
+                # cur_pred_val[b, :] = np.argmax(lobgits[:, [41, 42, 43]], axis=1) + 41
+                np.argmax(logits[:, segmentation_classes[cat]], 1)
+                + segmentation_classes[cat][0]
+            )  # B*N
+
+        pred_data = point_ary.copy()
+        pred_data[:, -1, :] = cur_pred_val.T
+
+        # Calculate accuracy metrics
+        correct = np.sum(cur_pred_val == target)
+        total_correct += correct
+        total_seen += cur_batch_size * conf["num_point"]
+
+        # Calculate per-class accuracy
+        for part_idx in range(conf["num_parts"]):
+            total_seen_class[part_idx] += np.sum(target == part_idx)
+            total_correct_class[part_idx] += np.sum(
+                (cur_pred_val == part_idx) & (target == part_idx)
+            )
+
+        # Calculate IoU for each shape
+        for batch_idx in range(cur_batch_size):
+            seg_pred = cur_pred_val[batch_idx, :]
+            seg_target = target[batch_idx, :]
+            cat = label_to_cat.label_to_cat[seg_target[0]]
+            part_ious = [0.0 for _ in enumerate(segmentation_classes[cat])]
+            for part_label in segmentation_classes[cat]:
+                if (np.sum(seg_target == part_label) == 0) and (
+                    np.sum(seg_pred == part_label) == 0
+                ):
+                    part_ious[part_label - segmentation_classes[cat][0]] = 1.0
+                    continue
+
+                part_ious[part_label - segmentation_classes[cat][0]] = np.sum(
+                    (seg_target == part_label) & (seg_pred == part_label)
+                ) / float(np.sum((seg_target == part_label) | (seg_pred == part_label)))
+            shape_ious[cat].append(np.mean(part_ious))
+
+        # write results
+        if not write_txt:
+            continue
+        for j in range(cur_bat_end - i):
+            pointnet_seg.log_string(
+                f"Writing data: {i} -> {i + cur_bat_end - 1}",
+                pointnet_seg.log_events,
+                False,
+            )
+            write_path = conf["out_path"] / txt_list[j].parent.name / txt_list[j].name
+            write_path.parent.mkdir(parents=True, exist_ok=True)
+            np.savetxt(write_path, pred_data[:, :, j], delimiter=" ", header="")
+
+    all_shape_ious = []
+    for cat in shape_ious:
+        for iou in shape_ious[cat]:
+            all_shape_ious.append(iou)
+        shape_ious[cat] = np.mean(shape_ious[cat])
+    mean_shape_ious = np.mean(list(shape_ious.values()))
+
+    test_metrics["accuracy"] = total_correct / float(total_seen)
+    test_metrics["class_avg_accuracy"] = np.mean(
+        np.array(total_correct_class) / np.array(total_seen_class, dtype=np.float64)
+    )
+
+    for cat in sorted(shape_ious.keys()):
+        pointnet_seg.log_string(
+            "eval mIoU of %s %f" % (cat + " " * (14 - len(cat)), shape_ious[cat]),
+            pointnet_seg.log_events,
+        )
+
+    test_metrics["class_avg_iou"] = mean_shape_ious
+    test_metrics["instance_avg_iou"] = np.mean(all_shape_ious)
+
+    pointnet_seg.log_string(
+        "Accuracy is: %.5f" % test_metrics["accuracy"], pointnet_seg.log_events
+    )
+    pointnet_seg.log_string(
+        "Class avg accuracy is: %.5f" % test_metrics["class_avg_accuracy"],
+        pointnet_seg.log_events,
+    )
+    pointnet_seg.log_string(
+        "Class avg mIOU is: %.5f" % test_metrics["class_avg_iou"],
+        pointnet_seg.log_events,
+    )
+    pointnet_seg.log_string(
+        "Instance avg mIOU is: %.5f" % test_metrics["instance_avg_iou"],
+        pointnet_seg.log_events,
+    )
+
+    return test_metrics, shape_ious, total_correct_class, total_seen_class
 
 
 if __name__ == "__main__":
@@ -394,51 +559,9 @@ if __name__ == "__main__":
         "r",
         encoding="utf-8",
     ) as f:
-        test_ids = tuple(set([str(d) for d in json.load(f)]))
-
-    # instantiate class
-    label_to_cat = LabelToCategory(seg_classes=segmentation_classes)
-    args["num_classes"] = label_to_cat.n_classes  # 16
-    args["num_parts"] = label_to_cat.n_parts  # 50
-    pointnet_seg = PointnetInference(config=args, log_events=True)
-    pointnet_seg.log_string(
-        "The number of data is: %d" % len(test_ids), pointnet_seg.log_events
-    )
-
-    # loop through txt files
-    for i in tqdm(range(0, len(test_ids), args["batch_size"])):
-        cur_bat_end = min(i + args["batch_size"], len(test_ids))
-        txt_list = [
-            args["data_dir"] / test_id.split("/")[-2] / f"{test_id.split('/')[-1]}.txt"
-            for test_id in test_ids[i:cur_bat_end]
-        ]
-
-        # Run model
-        pointnet_seg.log_string(
-            f"Running model: {i} -> {cur_bat_end - 1}",
-            pointnet_seg.log_events,
-            False,
-        )
-        point_ary = txt_path_to_batch_tensor(
-            txt_list, npoints=args["num_point"], normals=args["normal"], label=True
-        )  # 2048 * 7 * B
-        category = label_to_cat.label_to_onehot(point_ary)  # B*16
-        prediction = pointnet_seg.main(
-            data=point_ary[:, :-1, :], category=category
-        )  # return N*B
-
-        pred_data = point_ary.copy()
-        pred_data[:, -1, :] = prediction
-
-        # write results
-        if not write_txt:
-            continue
-        for j in range(cur_bat_end - i):
-            pointnet_seg.log_string(
-                f"Writing data: {i} -> {i + cur_bat_end - 1}",
-                pointnet_seg.log_events,
-                False,
-            )
-            write_path = args["out_path"] / txt_list[j].parent.name / txt_list[j].name
-            write_path.parent.mkdir(parents=True, exist_ok=True)
-            np.savetxt(write_path, pred_data[:, :, j], delimiter=" ", header="")
+        test_ids = list(set([str(d) for d in json.load(f)]))
+    test_ids = [
+        args["data_dir"] / test_id.split("/")[-2] / f"{test_id.split('/')[-1]}.txt"
+        for test_id in test_ids
+    ]
+    main(conf=args, data_paths=test_ids, segmentation_classes=segmentation_classes)
