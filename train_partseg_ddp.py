@@ -18,7 +18,7 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data.distributed import DistributedSampler
-from tqdm import tqdm_notebook
+from tqdm import tqdm, tqdm_notebook
 
 import provider
 from data_utils.ShapeNetDataLoader import PartNormalDataset
@@ -72,8 +72,7 @@ class TrainPartSegDDP:
         Number of processes (ranks).
     optimizer: str
         "Adam" or "SGD".
-    log_root: str
-    log_dir: Optional[str]
+    log_dir: os.PathLike
     decay_rate: float
         Weight decay.
     npoint: int
@@ -124,12 +123,7 @@ class TrainPartSegDDP:
 
         # mkdir
         timestr = str(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M"))
-        exp_dir = Path(self.conf["log_root"]) / "part_seg"
-        exp_dir.mkdir(parents=True, exist_ok=True)
-        if self.conf.get("log_dir") is None:
-            exp_dir = exp_dir / timestr
-        else:
-            exp_dir = exp_dir / self.conf["log_dir"]
+        exp_dir = Path(self.conf["log_dir"])
         exp_dir.mkdir(parents=True, exist_ok=True)
         self.checkpoints_dir = exp_dir / "checkpoints"
         self.checkpoints_dir.mkdir(exist_ok=True)
@@ -457,6 +451,10 @@ class TrainPartSegDDP:
             train_iter = tqdm_notebook(
                 enumerate(train_dataloader), total=len(train_dataloader), smoothing=0.9
             )
+        elif rank == 0:
+            train_iter = tqdm(
+                enumerate(train_dataloader), total=len(train_dataloader), smoothing=0.9
+            )
         else:
             train_iter = enumerate(train_dataloader)
         for _, (points, label, target) in train_iter:
@@ -737,16 +735,10 @@ if __name__ == "__main__":
         help="Adam or SGD [default: Adam]"
     )
     parser.add_argument(
-        "--log_root",
-        type=str,
-        default="log",
-        help="Log root directory [default: log]"
-    )
-    parser.add_argument(
         "--log_dir",
         type=str,
-        default=None,
-        help="log path wihin log root directory"
+        default="log/part_seg",
+        help="log path [default: log/part_seg/<model name>]"
     )
     parser.add_argument(
         "--decay_rate",
