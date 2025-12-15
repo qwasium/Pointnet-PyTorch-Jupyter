@@ -229,14 +229,12 @@ class TrainPartSegDDP:
 
         device = self._setup_dist(rank)
         model, criterion = self._build_model(device)
-        start_epoch = self._load_checkpoint_if_any(model, device, rank)
+        start_epoch, best_acc, best_class_avg_iou, best_instance_avg_iou = (
+            self._load_checkpoint_if_any(model, device, rank)
+        )
         optimizer = self._build_optimizer(model)
         ddp_model = DDP(model, device_ids=[rank] if device.type == "cuda" else None)
         train_dataloader, test_dataloader, train_sampler = self._build_dataloaders(rank)
-
-        best_acc = 0.0
-        best_class_avg_iou = 0.0
-        best_instance_avg_iou = 0.0
 
         end_epoch = start_epoch + self.conf["epoch"]
         for epoch in range(start_epoch, end_epoch):
@@ -319,39 +317,54 @@ class TrainPartSegDDP:
         return model, criterion
 
     def _load_checkpoint_if_any(self, model, device, rank):
-        """Load a checkpoint if available and return the starting epoch."""
+        """Load a checkpoint if available and return the last saved state."""
         start_epoch = 0
+        best_acc = 0.0
+        best_class_avg_iou = 0.0
+        best_instance_avg_iou = 0.0
         if self.pretrained_path is not None and Path(self.pretrained_path).exists():
             try:
                 checkpoint = torch.load(
                     self.pretrained_path, map_location=device, weights_only=False
                 )
                 model.load_state_dict(checkpoint["model_state_dict"], strict=False)
-                start_epoch = int(checkpoint.get("epoch", 0))
+                start_epoch = int(checkpoint.get("epoch", -1)) + 1  # default: -1+1=0
 
                 # Restore learning rate with fallback logic
                 if "learning_rate" in checkpoint:
                     self.restored_learning_rate = float(checkpoint["learning_rate"])
-                    if rank == 0:
-                        self.log_string(
-                            f"Restored learning rate from checkpoint: {self.restored_learning_rate:.6f}",
-                            rank=rank,
-                        )
-                else:
-                    if rank == 0:
-                        self.log_string(
-                            "No learning rate found in checkpoint, will use config value",
-                            rank=rank,
-                        )
-
-                if rank == 0:
                     self.log_string(
-                        "Use pretrain model from %s" % self.pretrained_path, rank=rank
+                        f"Restored learning rate from checkpoint: {self.restored_learning_rate:.6f}",
+                        rank=rank,
                     )
+                else:
+                    self.log_string(
+                        "No learning rate found in checkpoint, will use config value",
+                        rank=rank,
+                    )
+
+                # instance_avg_iou is used as metric for best model
+                if "instance_avg_iou" in checkpoint:
+                    best_acc = float(checkpoint.get("test_acc", 0.0))
+                    best_class_avg_iou = float(checkpoint.get("class_avg_iou", 0.0))
+                    best_instance_avg_iou = float(checkpoint["instance_avg_iou"])
+                    self.log_string(
+                        f"Restored best instance average iou from checkpoint: {best_instance_avg_iou:.6f}",
+                        rank=rank,
+                    )
+                else:
+                    self.log_string(
+                        "No restored instance average iou found in checkpoint, setting init value as 0.0",
+                        rank=rank,
+                    )
+
+                self.log_string(
+                    "Use pretrain model from %s" % self.pretrained_path, rank=rank
+                )
             except Exception as err:
                 if rank == 0:
                     self.log_string(f"Failed to load checkpoint: {err}", rank=rank)
-        return start_epoch
+        return start_epoch, best_acc, best_class_avg_iou, best_instance_avg_iou
 
     def _build_optimizer(self, model):
         """Create the optimizer from config for the provided model."""
